@@ -1,0 +1,39 @@
+services:
+  pedija:
+    build: .
+    container_name: pedija
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      PORT: "3001"
+      DATA_DIR: "/data"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+    volumes:
+      - pedija_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pedija-caddy
+    restart: unless-stopped
+    depends_on:
+      - pedija
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: "${DOMAIN}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pedija_data:
+  caddy_data:
+  caddy_config:

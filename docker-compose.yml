@@ -1,0 +1,21 @@
+services:
+  pedija:
+    build: .
+    container_name: pedija
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      DATA_DIR: "/data"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+    volumes:
+      - pedija_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pedija_data:
