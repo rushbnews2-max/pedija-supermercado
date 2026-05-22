@@ -42,6 +42,18 @@ app.get('/api/public', async (_req, res) => {
   });
 });
 
+app.get('/api/public/orders/:id', async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => item.id === Number(req.params.id));
+
+  if (!order) {
+    res.status(404).json({ message: 'Pedido nao encontrado' });
+    return;
+  }
+
+  res.json(order);
+});
+
 app.use('/api/bootstrap', requireAdmin);
 app.use('/api/migrate-local', requireAdmin);
 app.use('/api/store', requireAdmin);

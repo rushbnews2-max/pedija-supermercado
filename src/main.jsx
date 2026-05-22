@@ -279,7 +279,11 @@ function PageHeader({ title, subtitle, children }) {
 }
 
 function App() {
-  const [page, setPage] = React.useState(window.location.pathname.startsWith('/catalogo') ? 'catalogo' : 'estabelecimentos');
+  const [page, setPage] = React.useState(() => {
+    if (window.location.pathname.startsWith('/catalogo')) return 'catalogo';
+    if (window.location.pathname.startsWith('/pedido')) return 'pedido';
+    return 'estabelecimentos';
+  });
   const [authToken, setAuthToken] = React.useState(() => localStorage.getItem('pedija-admin-token') || '');
   const [storeData, setStoreData] = React.useState(initialStore);
   const [products, setProducts] = React.useState(initialProducts);
@@ -290,6 +294,8 @@ function App() {
   const lastOrderId = React.useRef(0);
   const pageRef = React.useRef(page);
   const isCatalog = page === 'catalogo';
+  const isTracking = page === 'pedido';
+  const isPublicPage = isCatalog || isTracking;
 
   React.useEffect(() => {
     pageRef.current = page;
@@ -298,8 +304,20 @@ function App() {
   React.useEffect(() => {
     let alive = true;
     setLoading(true);
-    const source = isCatalog
-      ? api('/api/public').then((data) => ({ ...data, orders: [] }))
+    const source = isPublicPage
+      ? api('/api/public').then(async (data) => {
+        if (!isTracking) return { ...data, orders: [] };
+
+        const orderId = Number(window.location.pathname.split('/').filter(Boolean).pop());
+        if (!orderId) return { ...data, orders: [] };
+
+        try {
+          const order = await api(`/api/public/orders/${orderId}`);
+          return { ...data, orders: [order] };
+        } catch {
+          return { ...data, orders: [] };
+        }
+      })
       : authToken
         ? migrateLocalData().then((migrated) => migrated || api('/api/bootstrap'))
         : Promise.resolve({ store: initialStore, products: [], orders: [] });
@@ -325,10 +343,10 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [authToken, isCatalog]);
+  }, [authToken, isCatalog, isPublicPage, isTracking]);
 
   React.useEffect(() => {
-    if (loading || isCatalog || !authToken) return undefined;
+    if (loading || isPublicPage || !authToken) return undefined;
 
     const checkForNewOrders = (nextOrders) => {
       const newestId = Math.max(...nextOrders.map((item) => item.id), 0);
@@ -352,7 +370,7 @@ function App() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [loading, isCatalog, authToken]);
+  }, [loading, isPublicPage, authToken]);
 
   const login = async (password) => {
     const data = await api('/api/login', {
@@ -435,6 +453,10 @@ function App() {
 
   if (isCatalog) {
     return <Catalog store={storeData} products={products} onOrder={addOrder} />;
+  }
+
+  if (isTracking) {
+    return <OrderTracking store={storeData} order={orders[0]} loading={loading} />;
   }
 
   if (loading) {
@@ -843,14 +865,14 @@ function PdfImportModal({ importProducts, onClose }) {
 function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder }) {
   const [filter, setFilter] = React.useState('Ativos');
   const filtered = orders.filter((order) => {
-    if (filter === 'Ativos') return order.status === 'Pendente';
+    if (filter === 'Ativos') return ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status);
     if (filter === 'Entregues') return order.status === 'Entregue';
     if (filter === 'Cancelados') return order.status === 'Cancelado';
     return true;
   });
 
   const counts = {
-    Ativos: orders.filter((order) => order.status === 'Pendente').length,
+    Ativos: orders.filter((order) => ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status)).length,
     Entregues: orders.filter((order) => order.status === 'Entregue').length,
     Cancelados: orders.filter((order) => order.status === 'Cancelado').length,
     Todos: orders.length
@@ -879,6 +901,7 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
       deleteOrder(order.id);
     }
   };
+  const whatsappUrl = buildCustomerStatusWhatsapp(order);
 
   return (
     <article className="order-card" onClick={onOpen}>
@@ -895,8 +918,11 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
         <strong>{BRL.format(orderTotal(order))}</strong>
       </footer>
       <div className="order-actions" onClick={(event) => event.stopPropagation()}>
+        <button onClick={() => updateOrderStatus(order.id, 'Em separacao')}>Separar</button>
+        <button onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}>Saiu</button>
         <button onClick={() => updateOrderStatus(order.id, 'Entregue')}>Entregar</button>
         <button onClick={() => updateOrderStatus(order.id, 'Cancelado')}>Cancelar</button>
+        <a href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={14} /> WhatsApp</a>
         <button className="danger-text" onClick={removeOrder}><Trash2 size={14} /> Excluir</button>
       </div>
     </article>
@@ -917,6 +943,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
       onClose();
     }
   };
+  const whatsappUrl = buildCustomerStatusWhatsapp(order);
 
   return (
     <div className="overlay">
@@ -933,7 +960,9 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
           <p>Pedido #{order.id} - {order.createdAt}</p>
           <p>Cliente: {order.customer}</p>
           <p>Telefone: {order.phone}</p>
+          <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
           <p>Endereco: {order.address}</p>
+          {order.notes && <p>Obs: {order.notes}</p>}
           <hr />
           {order.items.map((item) => (
             <div className="ticket-line" key={`${item.productId}-${item.name}`}>
@@ -950,7 +979,10 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
           <p>Status: {order.status}</p>
         </div>
         <div className="modal-actions screen-only">
+          <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Em separacao')}><Box size={17} /> Em separacao</button>
+          <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}><ShoppingBag size={17} /> Saiu para entrega</button>
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Entregue')}><Check size={17} /> Marcar entregue</button>
+          <a className="ghost-button" href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Enviar status</a>
           <button className="ghost-button danger-button" onClick={removeOrder}><Trash2 size={17} /> Excluir</button>
           <button className="orange-button" onClick={printOrder}><Printer size={17} /> Imprimir termica</button>
         </div>
@@ -962,7 +994,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
 function Catalog({ store, products, onOrder }) {
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
-  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX' });
+  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
@@ -981,18 +1013,25 @@ function Catalog({ store, products, onOrder }) {
   const submitOrder = async (event) => {
     event.preventDefault();
     if (!items.length) return alert('Adicione produtos ao pedido.');
+    if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return alert('Informe o endereco para entrega.');
+
+    const address = customer.deliveryMethod === 'Retirada'
+      ? 'Retirada no balcao'
+      : customer.address;
     const orderId = await onOrder({
       customer: customer.name,
       phone: customer.phone,
-      address: customer.address || 'Retirada no balcao',
+      address,
       payment: customer.payment,
+      deliveryMethod: customer.deliveryMethod,
+      notes: customer.notes,
       status: 'Pendente',
       createdAt: 'Agora',
       items
     });
-    setSentOrder({ id: orderId, customer: customer.name, total });
+    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, total, items });
     setCart({});
-    setCustomer({ name: '', phone: '', address: '', payment: 'PIX' });
+    setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
   };
 
   return (
@@ -1034,7 +1073,11 @@ function Catalog({ store, products, onOrder }) {
               <Check size={20} />
               <div>
                 <strong>Pedido enviado</strong>
-                <span>Pedido #{sentOrder.id} recebido. Aguarde a confirmacao do mercado.</span>
+                <span>Pedido #{sentOrder.id} recebido. Total {BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.</span>
+                <div className="success-actions">
+                  <a href={`/pedido/${sentOrder.id}`}>Acompanhar status</a>
+                  <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
+                </div>
               </div>
             </div>
           )}
@@ -1048,10 +1091,65 @@ function Catalog({ store, products, onOrder }) {
           <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
           <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
           <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
-          <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} /></label>
+          <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
+          {customer.deliveryMethod === 'Entrega' && (
+            <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
+          )}
+          <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
           <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
           <button className="orange-button" type="submit"><ShoppingBag size={18} /> Enviar pedido</button>
         </form>
+      </section>
+    </main>
+  );
+}
+
+function OrderTracking({ store, order, loading }) {
+  const steps = ['Pendente', 'Em separacao', 'Saiu para entrega', 'Entregue'];
+  const currentIndex = order ? steps.indexOf(order.status) : -1;
+  const isCanceled = order?.status === 'Cancelado';
+
+  return (
+    <main className="tracking-page">
+      <section className="tracking-card">
+        <LogoMark store={store} />
+        <span>{store.name}</span>
+        {loading ? (
+          <>
+            <h1>Carregando pedido...</h1>
+            <p>Estamos buscando as informacoes atualizadas.</p>
+          </>
+        ) : order ? (
+          <>
+            <h1>Pedido #{order.id}</h1>
+            <p>{order.customer}, acompanhe o andamento do seu pedido.</p>
+            <div className={`tracking-status ${isCanceled ? 'canceled' : ''}`}>
+              {isCanceled ? 'Pedido cancelado' : order.status}
+            </div>
+            {!isCanceled && (
+              <div className="status-steps">
+                {steps.map((step, index) => (
+                  <div className={index <= currentIndex ? 'done' : ''} key={step}>
+                    <span>{index + 1}</span>
+                    <strong>{step}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="tracking-summary">
+              <div><span>Total</span><strong>{BRL.format(orderTotal(order))}</strong></div>
+              <div><span>Entrega</span><strong>{order.deliveryMethod || 'Entrega'}</strong></div>
+              <div><span>Pagamento</span><strong>{order.payment}</strong></div>
+            </div>
+            <a className="orange-button" href={`/catalogo/${store.catalogSlug || 'mercado'}`}>Voltar ao catalogo</a>
+          </>
+        ) : (
+          <>
+            <h1>Pedido nao encontrado</h1>
+            <p>Confira o link recebido ou fale com o mercado pelo WhatsApp.</p>
+            <a className="orange-button" href={`/catalogo/${store.catalogSlug || 'mercado'}`}>Abrir catalogo</a>
+          </>
+        )}
       </section>
     </main>
   );
@@ -1193,6 +1291,42 @@ function slugify(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'mercado';
+}
+
+function buildCustomerStatusWhatsapp(order) {
+  const trackingUrl = `${window.location.origin}/pedido/${order.id}`;
+  const message = [
+    `Ola ${order.customer}, seu pedido #${order.id} esta com status: ${order.status}.`,
+    `Total: ${BRL.format(orderTotal(order))}`,
+    `Acompanhe aqui: ${trackingUrl}`
+  ].join('\n');
+
+  return `https://wa.me/${onlyDigits(order.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildStoreOrderWhatsapp(store, order) {
+  const trackingUrl = `${window.location.origin}/pedido/${order.id}`;
+  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}`).join('\n');
+  const message = [
+    `Novo pedido #${order.id}`,
+    `Cliente: ${order.customer}`,
+    `Telefone: ${order.phone}`,
+    `Tipo: ${order.deliveryMethod}`,
+    `Endereco: ${order.address}`,
+    `Pagamento: ${order.payment}`,
+    order.notes ? `Obs: ${order.notes}` : '',
+    '',
+    items,
+    '',
+    `Total: ${BRL.format(order.total)}`,
+    `Status: ${trackingUrl}`
+  ].filter(Boolean).join('\n');
+
+  return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
 }
 
 function orderTotal(order) {
