@@ -538,16 +538,31 @@ function NewOrderAlert({ order, onClose, onOpen }) {
 
 function AutoPrintTicket({ store, order, onDone }) {
   React.useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      document.body.dataset.printing = 'order';
-      window.print();
+    let finished = false;
+    let printTimeout;
+    let cleanupTimeout;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
       delete document.body.dataset.printing;
       onDone();
-    }, 250);
+    };
+
+    document.body.dataset.printing = 'order';
+
+    printTimeout = window.setTimeout(() => {
+      window.print();
+      cleanupTimeout = window.setTimeout(finish, 5000);
+    }, 700);
+
+    window.addEventListener('afterprint', finish, { once: true });
 
     return () => {
-      window.clearTimeout(timeout);
-      delete document.body.dataset.printing;
+      window.clearTimeout(printTimeout);
+      window.clearTimeout(cleanupTimeout);
+      window.removeEventListener('afterprint', finish);
+      if (!finished) delete document.body.dataset.printing;
     };
   }, [onDone]);
 
