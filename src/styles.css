@@ -789,6 +789,16 @@ input[type="file"] {
   font-weight: 700;
 }
 
+.form-status {
+  color: #405069;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
 .banner-preview {
   min-height: 96px;
   display: grid;

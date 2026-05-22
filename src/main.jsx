@@ -605,34 +605,50 @@ function Stores({ store, setStore, setPage }) {
 
 function StoreModal({ store, onSave, onClose }) {
   const [draft, setDraft] = React.useState(store);
+  const [status, setStatus] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
-  const importLogo = (event) => {
+  const importLogo = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setField('logoUrl', reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setStatus('Preparando logo...');
+      const image = await resizeImageFile(file, { maxWidth: 512, maxHeight: 512, quality: 0.84 });
+      setField('logoUrl', image);
+      setStatus('Logo pronto para salvar.');
+    } catch {
+      setStatus('Nao consegui importar esse logo. Tente outra imagem.');
+    }
   };
-  const importBanner = (event) => {
+  const importBanner = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setField('bannerUrl', reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setStatus('Preparando banner...');
+      const image = await resizeImageFile(file, { maxWidth: 1800, maxHeight: 700, quality: 0.82 });
+      setField('bannerUrl', image);
+      setStatus('Banner pronto para salvar.');
+    } catch {
+      setStatus('Nao consegui importar esse banner. Tente outra imagem.');
+    }
   };
 
-  const save = (event) => {
+  const save = async (event) => {
     event.preventDefault();
-    onSave({
-      ...draft,
-      catalogSlug: slugify(draft.catalogSlug || draft.name)
-    });
+    setSaving(true);
+    setStatus('');
+
+    try {
+      await onSave({
+        ...draft,
+        catalogSlug: slugify(draft.catalogSlug || draft.name)
+      });
+    } catch {
+      setStatus('Nao foi possivel salvar. Se colou uma imagem por URL, teste uma imagem menor ou importe do PC.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -665,7 +681,8 @@ function StoreModal({ store, onSave, onClose }) {
           <LogoMark store={draft} />
           <span>Previa do logo</span>
         </div>
-        <button className="orange-button" type="submit"><Check size={18} /> Salvar estabelecimento</button>
+        {status && <p className="form-status">{status}</p>}
+        <button className="orange-button" type="submit" disabled={saving}><Check size={18} /> {saving ? 'Salvando...' : 'Salvar estabelecimento'}</button>
       </form>
     </div>
   );
@@ -1311,6 +1328,31 @@ function slugify(value) {
 
 function getBannerStyle(store) {
   return store?.bannerUrl ? { '--banner-image': `url("${store.bannerUrl}")` } : undefined;
+}
+
+function resizeImageFile(file, { maxWidth, maxHeight, quality }) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
+        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function buildCustomerStatusWhatsapp(order) {
