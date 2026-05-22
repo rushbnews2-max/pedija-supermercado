@@ -437,12 +437,28 @@ input[type="file"] {
   margin-bottom: 8px;
 }
 
-.product-row img,
-.catalog-item img {
+.product-thumb {
   width: 44px;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 6px;
+}
+
+.product-thumb-empty {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1;
+}
+
+.product-thumb-empty svg {
+  color: #94a3b8;
 }
 
 .product-row h4 {
@@ -895,7 +911,7 @@ input[type="file"] {
   padding: 14px;
 }
 
-.catalog-item img {
+.catalog-item .product-thumb {
   width: 72px;
 }
 

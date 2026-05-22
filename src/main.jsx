@@ -708,7 +708,7 @@ function Products({ store, products, createProduct, updateProduct, deleteProduct
 function ProductRow({ product, onEdit, onToggle, onDelete }) {
   return (
     <article className="product-row">
-      <img src={product.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=220&q=80'} alt={product.name} />
+      <ProductThumb product={product} />
       <div>
         <h4>{product.name}</h4>
         {product.code && <small>Cod. {product.code}</small>}
@@ -723,6 +723,19 @@ function ProductRow({ product, onEdit, onToggle, onDelete }) {
         <button aria-label="Excluir" className="danger" onClick={onDelete}><Trash2 size={18} /></button>
       </div>
     </article>
+  );
+}
+
+function ProductThumb({ product }) {
+  if (product.image) {
+    return <img className="product-thumb" src={product.image} alt={product.name} />;
+  }
+
+  return (
+    <div className="product-thumb product-thumb-empty" aria-label="Produto sem foto">
+      <Box size={18} />
+      <span>Sem foto</span>
+    </div>
   );
 }
 
@@ -744,7 +757,7 @@ function ProductModal({ product, onSave, onClose }) {
         </div>
         <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
         <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
-        <label>Imagem URL<input value={draft.image} onChange={(event) => setField('image', event.target.value)} /></label>
+        <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
         <button className="orange-button" type="submit"><Check size={18} /> Salvar</button>
       </form>
@@ -1000,7 +1013,7 @@ function Catalog({ store, products, onOrder }) {
           <div className="catalog-grid">
             {activeProducts.map((product) => (
               <article className="catalog-item" key={product.id}>
-                <img src={product.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=220&q=80'} alt={product.name} />
+                <ProductThumb product={product} />
                 <div>
                   <span>{product.category}</span>
                   <h2>{product.name}</h2>
