@@ -292,6 +292,8 @@ function App() {
   const [loading, setLoading] = React.useState(true);
   const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [newOrderAlert, setNewOrderAlert] = React.useState(null);
+  const [autoPrintEnabled, setAutoPrintEnabled] = React.useState(() => localStorage.getItem('pedija-auto-print') === 'yes');
+  const [autoPrintOrder, setAutoPrintOrder] = React.useState(null);
   const lastOrderId = React.useRef(0);
   const pageRef = React.useRef(page);
   const isCatalog = page === 'catalogo';
@@ -357,6 +359,9 @@ function App() {
         if (pageRef.current !== 'catalogo') {
           setNewOrderAlert(newestOrder);
           playOrderSound();
+          if (autoPrintEnabled) {
+            setAutoPrintOrder(newestOrder);
+          }
         }
       }
     };
@@ -371,7 +376,12 @@ function App() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [loading, isPublicPage, authToken]);
+  }, [loading, isPublicPage, authToken, autoPrintEnabled]);
+
+  const toggleAutoPrint = (enabled) => {
+    setAutoPrintEnabled(enabled);
+    localStorage.setItem('pedija-auto-print', enabled ? 'yes' : 'no');
+  };
 
   const login = async (password) => {
     const data = await api('/api/login', {
@@ -486,7 +496,7 @@ function App() {
         {page === 'painel' && <Dashboard products={products} orders={orders} setPage={setPage} />}
         {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
         {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
-        {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} />}
+        {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
         {page === 'relatorios' && <Reports orders={orders} products={products} />}
         {page === 'cupons' && <Coupons />}
         {page === 'usuarios' && <UsersPage />}
@@ -504,6 +514,9 @@ function App() {
           }}
         />
       )}
+      {autoPrintOrder && (
+        <AutoPrintTicket store={storeData} order={autoPrintOrder} onDone={() => setAutoPrintOrder(null)} />
+      )}
     </div>
   );
 }
@@ -520,6 +533,28 @@ function NewOrderAlert({ order, onClose, onOpen }) {
       <button className="ghost-button" onClick={onOpen}>Ver pedido</button>
       <button className="alert-close" aria-label="Fechar alerta" onClick={onClose}><X size={18} /></button>
     </aside>
+  );
+}
+
+function AutoPrintTicket({ store, order, onDone }) {
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      document.body.dataset.printing = 'order';
+      window.print();
+      delete document.body.dataset.printing;
+      onDone();
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      delete document.body.dataset.printing;
+    };
+  }, [onDone]);
+
+  return (
+    <div className="auto-print-ticket" aria-hidden="true">
+      <ThermalTicket store={store} order={order} />
+    </div>
   );
 }
 
@@ -894,7 +929,7 @@ function PdfImportModal({ importProducts, onClose }) {
   );
 }
 
-function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder }) {
+function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, autoPrintEnabled, setAutoPrintEnabled }) {
   const [filter, setFilter] = React.useState('Ativos');
   const filtered = orders.filter((order) => {
     if (filter === 'Ativos') return ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status);
@@ -912,7 +947,12 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder }) {
 
   return (
     <>
-      <PageHeader title="Pedidos" subtitle="Gerencie os pedidos recebidos" />
+      <PageHeader title="Pedidos" subtitle="Gerencie os pedidos recebidos">
+        <label className="auto-print-toggle">
+          <input type="checkbox" checked={autoPrintEnabled} onChange={(event) => setAutoPrintEnabled(event.target.checked)} />
+          <span>Imprimir novos pedidos automaticamente</span>
+        </label>
+      </PageHeader>
       <div className="tabs">
         {Object.keys(counts).map((name) => (
           <button key={name} className={filter === name ? 'active' : ''} onClick={() => setFilter(name)}>{name} ({counts[name]})</button>
@@ -984,32 +1024,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
           <h2>Pedido #{order.id}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
-        <div className="thermal-ticket">
-          <h3>{store.name}</h3>
-          <p>{store.phone}</p>
-          <p>{store.address}</p>
-          <hr />
-          <p>Pedido #{order.id} - {order.createdAt}</p>
-          <p>Cliente: {order.customer}</p>
-          <p>Telefone: {order.phone}</p>
-          <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
-          <p>Endereco: {order.address}</p>
-          {order.notes && <p>Obs: {order.notes}</p>}
-          <hr />
-          {order.items.map((item) => (
-            <div className="ticket-line" key={`${item.productId}-${item.name}`}>
-              <span>{item.qty}x {item.name}</span>
-              <strong>{BRL.format(item.qty * item.price)}</strong>
-            </div>
-          ))}
-          <hr />
-          <div className="ticket-line total">
-            <span>Total</span>
-            <strong>{BRL.format(orderTotal(order))}</strong>
-          </div>
-          <p>Pagamento: {order.payment}</p>
-          <p>Status: {order.status}</p>
-        </div>
+        <ThermalTicket store={store} order={order} />
         <div className="modal-actions screen-only">
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Em separacao')}><Box size={17} /> Em separacao</button>
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}><ShoppingBag size={17} /> Saiu para entrega</button>
@@ -1019,6 +1034,37 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
           <button className="orange-button" onClick={printOrder}><Printer size={17} /> Imprimir termica</button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function ThermalTicket({ store, order }) {
+  return (
+    <div className="thermal-ticket">
+      <h3>{store.name}</h3>
+      <p>{store.phone}</p>
+      <p>{store.address}</p>
+      <hr />
+      <p>Pedido #{order.id} - {order.createdAt}</p>
+      <p>Cliente: {order.customer}</p>
+      <p>Telefone: {order.phone}</p>
+      <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
+      <p>Endereco: {order.address}</p>
+      {order.notes && <p>Obs: {order.notes}</p>}
+      <hr />
+      {order.items.map((item) => (
+        <div className="ticket-line" key={`${item.productId}-${item.name}`}>
+          <span>{item.qty}x {item.name}</span>
+          <strong>{BRL.format(item.qty * item.price)}</strong>
+        </div>
+      ))}
+      <hr />
+      <div className="ticket-line total">
+        <span>Total</span>
+        <strong>{BRL.format(orderTotal(order))}</strong>
+      </div>
+      <p>Pagamento: {order.payment}</p>
+      <p>Status: {order.status}</p>
     </div>
   );
 }

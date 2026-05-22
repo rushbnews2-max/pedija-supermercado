@@ -206,6 +206,26 @@ a {
   flex-wrap: wrap;
 }
 
+.auto-print-toggle {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #1b2a41;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auto-print-toggle input {
+  min-height: auto;
+  width: 18px;
+  aspect-ratio: 1;
+}
+
 .orange-button,
 .ghost-button,
 .quick-panel button {
@@ -878,6 +898,14 @@ input[type="file"] {
   line-height: 1.35;
 }
 
+.auto-print-ticket {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 80mm;
+  background: #fff;
+}
+
 .thermal-ticket h3 {
   text-align: center;
   margin: 0 0 4px;
@@ -1329,6 +1357,12 @@ input[type="file"] {
   body[data-printing="order"] .thermal-ticket,
   body[data-printing="order"] .thermal-ticket * {
     visibility: visible;
+  }
+
+  body[data-printing="order"] .auto-print-ticket {
+    position: static;
+    visibility: visible;
+    width: 80mm;
   }
 
   body[data-printing="order"] .overlay {
