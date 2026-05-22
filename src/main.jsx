@@ -573,8 +573,7 @@ function Stores({ store, setStore, setPage }) {
       </PageHeader>
       <section className="store-card">
         <div className={`store-hero ${store.bannerUrl ? 'image-banner' : ''}`} style={getBannerStyle(store)}>
-          <div className="store-logo-large"><LogoMark store={store} /></div>
-          <strong>{store.bannerText || store.name}</strong>
+          {!store.bannerUrl && <strong>{store.bannerText || store.name}</strong>}
         </div>
         <div className="store-body">
           <LogoMark store={store} />
