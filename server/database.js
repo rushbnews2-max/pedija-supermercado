@@ -15,6 +15,7 @@ const initialStore = {
   address: 'Av. Principal, 1000 - Centro',
   catalogSlug: 'super-feliz',
   bannerText: 'SuperFeliz',
+  bannerUrl: '',
   logoUrl: ''
 };
 

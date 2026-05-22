@@ -281,6 +281,12 @@ input[type="file"] {
   position: relative;
 }
 
+.store-hero.image-banner {
+  background:
+    linear-gradient(90deg, rgba(6, 24, 50, .34), rgba(6, 24, 50, .1)),
+    var(--banner-image) center/cover;
+}
+
 .store-hero strong {
   color: #10a556;
   font-size: clamp(30px, 8vw, 52px);
@@ -289,12 +295,15 @@ input[type="file"] {
   overflow-wrap: anywhere;
   text-align: center;
   text-shadow: 0 5px 10px rgba(0, 0, 0, .22);
+  position: relative;
+  z-index: 1;
 }
 
 .store-logo-large {
   position: absolute;
   top: 18px;
   transform: translateX(-78px) rotate(-8deg);
+  z-index: 2;
 }
 
 .store-body {
@@ -780,6 +789,33 @@ input[type="file"] {
   font-weight: 700;
 }
 
+.banner-preview {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e7eaf0;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e9edf3 0%, #dfe3e9 52%, #f3d96a 52%, #fff1a6 100%);
+}
+
+.banner-preview.image-banner {
+  background:
+    linear-gradient(90deg, rgba(6, 24, 50, .44), rgba(6, 24, 50, .18)),
+    var(--banner-image) center/cover;
+}
+
+.banner-preview span {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+
 .import-modal {
   width: min(760px, 100%);
 }
@@ -862,6 +898,12 @@ input[type="file"] {
   background:
     linear-gradient(90deg, rgba(6, 24, 50, .86), rgba(6, 24, 50, .48)),
     url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1400&q=80") center/cover;
+}
+
+.catalog-hero.image-banner {
+  background:
+    linear-gradient(90deg, rgba(6, 24, 50, .84), rgba(6, 24, 50, .4)),
+    var(--banner-image) center/cover;
 }
 
 .catalog-hero h1 {

@@ -151,6 +151,7 @@ const initialStore = {
   address: 'Av. Principal, 1000 - Centro',
   catalogSlug: 'super-feliz',
   bannerText: 'SuperFeliz',
+  bannerUrl: '',
   logoUrl: ''
 };
 
@@ -571,7 +572,7 @@ function Stores({ store, setStore, setPage }) {
         </div>
       </PageHeader>
       <section className="store-card">
-        <div className="store-hero">
+        <div className={`store-hero ${store.bannerUrl ? 'image-banner' : ''}`} style={getBannerStyle(store)}>
           <div className="store-logo-large"><LogoMark store={store} /></div>
           <strong>{store.bannerText || store.name}</strong>
         </div>
@@ -615,6 +616,16 @@ function StoreModal({ store, onSave, onClose }) {
     };
     reader.readAsDataURL(file);
   };
+  const importBanner = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setField('bannerUrl', reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const save = (event) => {
     event.preventDefault();
@@ -642,7 +653,12 @@ function StoreModal({ store, onSave, onClose }) {
           <label>Horario<input value={draft.hours} onChange={(event) => setField('hours', event.target.value)} required /></label>
           <label>Link do catalogo<input value={draft.catalogSlug} onChange={(event) => setField('catalogSlug', event.target.value)} /></label>
         </div>
-        <label>Texto do banner<input value={draft.bannerText} onChange={(event) => setField('bannerText', event.target.value)} /></label>
+        <label>Texto do banner<input value={draft.bannerText || ''} onChange={(event) => setField('bannerText', event.target.value)} /></label>
+        <label>Banner URL<input value={draft.bannerUrl || ''} onChange={(event) => setField('bannerUrl', event.target.value)} placeholder="Cole o link da imagem do banner" /></label>
+        <label>Importar banner do PC<input type="file" accept="image/*" onChange={importBanner} /></label>
+        <div className={`banner-preview ${draft.bannerUrl ? 'image-banner' : ''}`} style={getBannerStyle(draft)}>
+          <span>{draft.bannerText || draft.name}</span>
+        </div>
         <label>Logo URL<input value={draft.logoUrl || ''} onChange={(event) => setField('logoUrl', event.target.value)} placeholder="Cole o link da imagem do logo" /></label>
         <label>Importar logo do PC<input type="file" accept="image/*" onChange={importLogo} /></label>
         <div className="logo-preview">
@@ -1036,7 +1052,7 @@ function Catalog({ store, products, onOrder }) {
 
   return (
     <main className="catalog-page">
-      <header className="catalog-hero">
+      <header className={`catalog-hero ${store.bannerUrl ? 'image-banner' : ''}`} style={getBannerStyle(store)}>
         <div>
           <h1>{store.name}</h1>
           <p>{store.type} aberto das {store.hours}</p>
@@ -1291,6 +1307,10 @@ function slugify(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'mercado';
+}
+
+function getBannerStyle(store) {
+  return store?.bannerUrl ? { '--banner-image': `url("${store.bannerUrl}")` } : undefined;
 }
 
 function buildCustomerStatusWhatsapp(order) {
