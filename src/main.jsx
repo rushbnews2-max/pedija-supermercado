@@ -1028,6 +1028,7 @@ function Catalog({ store, products, onOrder }) {
   const [cart, setCart] = React.useState({});
   const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
+  const [checkoutStep, setCheckoutStep] = React.useState('products');
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((item) => item.id === id);
@@ -1064,6 +1065,7 @@ function Catalog({ store, products, onOrder }) {
     setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, total, items });
     setCart({});
     setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
+    setCheckoutStep('products');
   };
 
   return (
@@ -1076,61 +1078,87 @@ function Catalog({ store, products, onOrder }) {
         <LogoMark store={store} />
       </header>
       <section className="catalog-body">
-        <div className="catalog-products">
-          <div className="search-box">
-            <Search size={18} />
-            <input placeholder="Buscar produto" value={query} onChange={(event) => setQuery(event.target.value)} />
-          </div>
-          <div className="catalog-grid">
-            {activeProducts.map((product) => (
-              <article className="catalog-item" key={product.id}>
-                <ProductThumb product={product} />
-                <div>
-                  <span>{product.category}</span>
-                  <h2>{product.name}</h2>
-                  <strong>{BRL.format(product.price)}</strong>
-                </div>
-                <div className="stepper">
-                  <button onClick={() => remove(product.id)}>-</button>
-                  <b>{cart[product.id] || 0}</b>
-                  <button onClick={() => add(product.id)}>+</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-        <form className="cart-panel" onSubmit={submitOrder}>
-          {sentOrder && (
-            <div className="success-message">
-              <Check size={20} />
-              <div>
-                <strong>Pedido enviado</strong>
-                <span>Pedido #{sentOrder.id} recebido. Total {BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.</span>
-                <div className="success-actions">
-                  <a href={`/pedido/${sentOrder.id}`}>Acompanhar status</a>
-                  <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
-                </div>
+        {sentOrder && (
+          <div className="success-message">
+            <Check size={20} />
+            <div>
+              <strong>Pedido enviado</strong>
+              <span>Pedido #{sentOrder.id} recebido. Total {BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.</span>
+              <div className="success-actions">
+                <a href={`/pedido/${sentOrder.id}`}>Acompanhar status</a>
+                <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
               </div>
             </div>
-          )}
-          <h2>Pedido</h2>
-          {items.length ? items.map((item) => (
-            <div className="cart-line" key={item.productId}>
-              <span>{item.qty}x {item.name}</span>
-              <strong>{BRL.format(item.qty * item.price)}</strong>
+          </div>
+        )}
+
+        {checkoutStep === 'products' ? (
+          <>
+            <section className="catalog-cart-summary">
+              <div>
+                <span>Carrinho</span>
+                <strong>{items.length ? `${items.reduce((sum, item) => sum + item.qty, 0)} itens` : 'Vazio'}</strong>
+              </div>
+              <div className="cart-summary-items">
+                {items.length ? items.slice(0, 3).map((item) => (
+                  <span key={item.productId}>{item.qty}x {item.name}</span>
+                )) : <span>Selecione os produtos abaixo.</span>}
+                {items.length > 3 && <span>+{items.length - 3} itens</span>}
+              </div>
+              <strong>{BRL.format(total)}</strong>
+              <button className="orange-button" type="button" disabled={!items.length} onClick={() => setCheckoutStep('checkout')}>
+                <ShoppingBag size={18} /> Finalizar
+              </button>
+            </section>
+
+            <div className="catalog-products">
+              <div className="search-box">
+                <Search size={18} />
+                <input placeholder="Buscar produto" value={query} onChange={(event) => setQuery(event.target.value)} />
+              </div>
+              <div className="catalog-grid">
+                {activeProducts.map((product) => (
+                  <article className="catalog-item" key={product.id}>
+                    <ProductThumb product={product} />
+                    <div>
+                      <span>{product.category}</span>
+                      <h2>{product.name}</h2>
+                      <strong>{BRL.format(product.price)}</strong>
+                    </div>
+                    <div className="stepper">
+                      <button onClick={() => remove(product.id)}>-</button>
+                      <b>{cart[product.id] || 0}</b>
+                      <button onClick={() => add(product.id)}>+</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
-          )) : <p className="empty">Escolha produtos no catalogo.</p>}
-          <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
-          <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
-          <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
-          <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
-          {customer.deliveryMethod === 'Entrega' && (
-            <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
-          )}
-          <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
-          <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
-          <button className="orange-button" type="submit"><ShoppingBag size={18} /> Enviar pedido</button>
-        </form>
+          </>
+        ) : (
+          <form className="cart-panel checkout-panel" onSubmit={submitOrder}>
+            <div className="checkout-head">
+              <button className="ghost-button" type="button" onClick={() => setCheckoutStep('products')}>Voltar aos produtos</button>
+              <h2>Finalizar pedido</h2>
+            </div>
+            {items.length ? items.map((item) => (
+              <div className="cart-line" key={item.productId}>
+                <span>{item.qty}x {item.name}</span>
+                <strong>{BRL.format(item.qty * item.price)}</strong>
+              </div>
+            )) : <p className="empty">Escolha produtos no catalogo.</p>}
+            <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
+            <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
+            <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
+            <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
+            {customer.deliveryMethod === 'Entrega' && (
+              <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
+            )}
+            <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
+            <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
+            <button className="orange-button" type="submit"><ShoppingBag size={18} /> Enviar pedido</button>
+          </form>
+        )}
       </section>
     </main>
   );

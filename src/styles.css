@@ -932,10 +932,61 @@ input[type="file"] {
 
 .catalog-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 22px;
+  gap: 16px;
   padding: 22px clamp(18px, 6vw, 70px) 48px;
   align-items: start;
+}
+
+.catalog-cart-summary {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, .08);
+}
+
+.catalog-cart-summary span,
+.catalog-cart-summary strong {
+  display: block;
+}
+
+.catalog-cart-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalog-cart-summary > strong {
+  color: var(--orange);
+  font-size: 20px;
+}
+
+.cart-summary-items {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cart-summary-items span {
+  max-width: 190px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-box {
@@ -996,16 +1047,27 @@ input[type="file"] {
 }
 
 .cart-panel {
-  position: sticky;
-  top: 18px;
+  width: min(620px, 100%);
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 18px;
 }
 
+.checkout-panel {
+  justify-self: center;
+}
+
+.checkout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .cart-panel h2 {
-  margin: 0 0 14px;
+  margin: 0;
 }
 
 .success-message {
@@ -1213,9 +1275,22 @@ input[type="file"] {
   }
 
   .orders-grid,
-  .metric-grid,
-  .catalog-body {
+  .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .catalog-cart-summary {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+
+  .cart-summary-items {
+    grid-column: 1 / -1;
+  }
+
+  .catalog-cart-summary .orange-button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .product-row {
@@ -1232,8 +1307,9 @@ input[type="file"] {
     justify-content: flex-end;
   }
 
-  .cart-panel {
-    position: static;
+  .checkout-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .status-steps {
