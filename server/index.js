@@ -22,7 +22,7 @@ app.post('/api/login', (req, res) => {
   const catalogSlug = requestedSlug ? slugify(requestedSlug) : '';
 
   if (catalogSlug) {
-    readDb().then((db) => {
+    ensurePlatformDefaults().then((db) => {
       const establishment = withPlatformDefaults(db).establishments.find((item) => item.catalogSlug === catalogSlug);
       if (!establishment || req.body?.password !== establishment.adminPassword) {
         res.status(401).json({ message: 'Senha invalida' });
@@ -92,7 +92,7 @@ app.use('/api/orders', (req, res, next) => {
 });
 
 app.get('/api/bootstrap', async (req, res) => {
-  const db = await readDb();
+  const db = await ensurePlatformDefaults();
   const session = getSession(req);
   const data = withPlatformDefaults(db);
 
@@ -128,7 +128,7 @@ app.post('/api/migrate-local', async (req, res) => {
 });
 
 app.get('/api/establishments', async (_req, res) => {
-  const db = await readDb();
+  const db = await ensurePlatformDefaults();
   res.json(withPlatformDefaults(db).establishments);
 });
 
@@ -373,6 +373,10 @@ function getToken(req) {
 
 function getSession(req) {
   return tokens.get(getToken(req)) || {};
+}
+
+async function ensurePlatformDefaults() {
+  return updateDb((current) => withPlatformDefaults(current));
 }
 
 function withPlatformDefaults(db) {

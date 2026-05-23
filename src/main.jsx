@@ -350,6 +350,16 @@ function App() {
     source
       .then((data) => {
         if (!alive) return;
+        if (!isPublicPage && ((adminSlug && data.role !== 'store') || (!adminSlug && data.role === 'store'))) {
+          localStorage.removeItem('pedija-admin-token');
+          setAuthToken('');
+          setRole('');
+          setProducts([]);
+          setOrders([]);
+          setLoading(false);
+          return;
+        }
+
         setRole(data.role || (adminSlug ? 'store' : 'master'));
         setStoreData(data.store);
         setEstablishments(data.establishments || buildDefaultEstablishments(data.store));
@@ -377,7 +387,7 @@ function App() {
   }, [authToken, adminSlug, isCatalog, isPrintPage, isPublicPage, isTracking, routeSlug]);
 
   React.useEffect(() => {
-    if (loading || isPublicPage || !authToken) return undefined;
+    if (loading || isPublicPage || !authToken || role !== 'store') return undefined;
 
     const checkForNewOrders = (nextOrders) => {
       const newestId = Math.max(...nextOrders.map((item) => item.id), 0);
@@ -404,7 +414,7 @@ function App() {
     return () => {
       window.clearInterval(interval);
     };
-  }, [loading, isPublicPage, authToken, autoPrintEnabled]);
+  }, [loading, isPublicPage, authToken, autoPrintEnabled, role]);
 
   const toggleAutoPrint = (enabled) => {
     setAutoPrintEnabled(enabled);
@@ -701,10 +711,12 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
                 <span><Phone size={15} /> {establishment.phone || 'Sem WhatsApp'}</span>
                 <span><ExternalLink size={15} /> /admin/{establishment.catalogSlug}</span>
                 <span><Users size={15} /> {establishment.adminUser || 'Sem usuario'}</span>
+                <span><Shield size={15} /> Senha: {establishment.adminPassword || 'Nao definida'}</span>
               </div>
             </div>
             <div className="client-actions">
               <span className={establishment.status === 'Ativo' ? 'green-pill' : 'pending-pill'}>{establishment.status}</span>
+              <button className="ghost-button" onClick={() => copyText(`Link: ${buildUrl(`/admin/${establishment.catalogSlug}`)}\nUsuario: ${establishment.adminUser || 'admin'}\nSenha: ${establishment.adminPassword || ''}`, 'Dados de acesso copiados.')}><Copy size={17} /> Dados</button>
               <button className="ghost-button" onClick={() => copyText(buildUrl(`/admin/${establishment.catalogSlug}`), 'Link de acesso copiado.')}><Copy size={17} /> Acesso</button>
               <button className="ghost-button" onClick={() => copyText(buildUrl(`/catalogo/${establishment.catalogSlug}`), 'Link do catalogo copiado.')}><ExternalLink size={17} /> Catalogo</button>
               <button className="ghost-button" onClick={() => setEditing(establishment)}><Edit3 size={17} /> Editar</button>
