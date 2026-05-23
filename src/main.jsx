@@ -896,7 +896,7 @@ function StoreModal({ store, onSave, onClose }) {
 
     try {
       setStatus('Preparando logo...');
-      const image = await resizeImageFile(file, { maxWidth: 512, maxHeight: 512, quality: 0.84 });
+      const image = await resizeImageFile(file, { maxWidth: 512, maxHeight: 512, quality: 0.92, format: 'image/png' });
       setField('logoUrl', image);
       setStatus('Logo pronto para salvar.');
     } catch {
@@ -1863,7 +1863,7 @@ function getBannerStyle(store) {
   return store?.bannerUrl ? { '--banner-image': `url("${store.bannerUrl}")` } : undefined;
 }
 
-function resizeImageFile(file, { maxWidth, maxHeight, quality }) {
+function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/jpeg', background = '' }) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -1879,8 +1879,12 @@ function resizeImageFile(file, { maxWidth, maxHeight, quality }) {
         canvas.height = height;
 
         const context = canvas.getContext('2d');
+        if (background) {
+          context.fillStyle = background;
+          context.fillRect(0, 0, width, height);
+        }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        resolve(canvas.toDataURL(format, quality));
       };
       image.src = reader.result;
     };
