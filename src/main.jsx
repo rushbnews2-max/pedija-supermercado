@@ -361,7 +361,7 @@ function App() {
         if (pageRef.current !== 'catalogo') {
           setNewOrderAlert(newestOrder);
           playOrderSound();
-          if (autoPrintEnabled) {
+          if (autoPrintEnabled && reserveAutoPrint(newestOrder.id)) {
             setAutoPrintOrder(newestOrder);
           }
         }
@@ -1365,6 +1365,31 @@ function playOrderSound() {
   } catch {
     // Alguns navegadores bloqueiam audio automatico sem uma interacao previa.
   }
+}
+
+function reserveAutoPrint(orderId) {
+  const key = `pedija-auto-printed-${orderId}`;
+  const now = Date.now();
+  const previous = Number(localStorage.getItem(key) || 0);
+
+  if (previous && now - previous < 1000 * 60 * 30) {
+    return false;
+  }
+
+  localStorage.setItem(key, String(now));
+  cleanupAutoPrintLocks(now);
+  return true;
+}
+
+function cleanupAutoPrintLocks(now) {
+  Object.keys(localStorage).forEach((key) => {
+    if (!key.startsWith('pedija-auto-printed-')) return;
+
+    const printedAt = Number(localStorage.getItem(key) || 0);
+    if (!printedAt || now - printedAt > 1000 * 60 * 60 * 24) {
+      localStorage.removeItem(key);
+    }
+  });
 }
 
 function groupPdfTextByLine(textItems) {
