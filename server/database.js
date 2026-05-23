@@ -14,6 +14,7 @@ const initialStore = {
   status: 'Aberto',
   address: 'Av. Principal, 1000 - Centro',
   catalogSlug: 'super-feliz',
+  segment: 'supermercado',
   bannerText: 'SuperFeliz',
   bannerUrl: '',
   logoUrl: ''
@@ -112,6 +113,16 @@ const initialOrders = [
 
 const initialData = {
   store: initialStore,
+  establishments: [{
+    id: 'store-main',
+    name: initialStore.name,
+    segment: initialStore.segment,
+    plan: 'Basico',
+    status: 'Ativo',
+    phone: initialStore.phone,
+    catalogSlug: initialStore.catalogSlug,
+    adminUser: 'admin'
+  }],
   products: initialProducts,
   orders: initialOrders
 };

@@ -661,6 +661,76 @@ input[type="file"] {
   gap: 12px;
 }
 
+.client-list {
+  display: grid;
+  gap: 12px;
+}
+
+.client-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.client-main {
+  display: grid;
+  gap: 12px;
+}
+
+.client-main h3 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+
+.client-segment {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: #253348;
+  background: #eef2f7;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.client-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  color: #46566d;
+  font-size: 14px;
+}
+
+.client-meta span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow-wrap: anywhere;
+}
+
+.client-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.danger-text {
+  color: #e11d48;
+}
+
+.establishment-modal {
+  width: min(560px, 100%);
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -1321,6 +1391,15 @@ input[type="file"] {
   .orders-grid,
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .client-card,
+  .client-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .client-actions {
+    justify-content: flex-start;
   }
 
   .catalog-cart-summary {

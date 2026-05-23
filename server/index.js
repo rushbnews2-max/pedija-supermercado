@@ -56,6 +56,7 @@ app.get('/api/public/orders/:id', async (req, res) => {
 
 app.use('/api/bootstrap', requireAdmin);
 app.use('/api/migrate-local', requireAdmin);
+app.use('/api/establishments', requireAdmin);
 app.use('/api/store', requireAdmin);
 app.use('/api/products', requireAdmin);
 app.use('/api/orders', (req, res, next) => {
@@ -65,17 +66,69 @@ app.use('/api/orders', (req, res, next) => {
 
 app.get('/api/bootstrap', async (_req, res) => {
   const db = await readDb();
-  res.json(db);
+  res.json(withPlatformDefaults(db));
 });
 
 app.post('/api/migrate-local', async (req, res) => {
   const db = await updateDb((current) => ({
+    ...current,
     store: req.body.store || current.store,
+    establishments: current.establishments || buildDefaultEstablishments(current.store),
     products: Array.isArray(req.body.products) ? req.body.products : current.products,
     orders: Array.isArray(req.body.orders) ? req.body.orders : current.orders
   }));
 
-  res.json(db);
+  res.json(withPlatformDefaults(db));
+});
+
+app.get('/api/establishments', async (_req, res) => {
+  const db = await readDb();
+  res.json(withPlatformDefaults(db).establishments);
+});
+
+app.post('/api/establishments', async (req, res) => {
+  const establishment = normalizeEstablishment({
+    ...req.body,
+    id: crypto.randomUUID()
+  });
+
+  await updateDb((current) => ({
+    ...current,
+    establishments: [establishment, ...(current.establishments || buildDefaultEstablishments(current.store))]
+  }));
+
+  res.status(201).json(establishment);
+});
+
+app.put('/api/establishments/:id', async (req, res) => {
+  let saved;
+  await updateDb((current) => {
+    const establishments = current.establishments || buildDefaultEstablishments(current.store);
+    return {
+      ...current,
+      establishments: establishments.map((item) => {
+        if (item.id !== req.params.id) return item;
+        saved = normalizeEstablishment({ ...item, ...req.body, id: item.id });
+        return saved;
+      })
+    };
+  });
+
+  if (!saved) {
+    res.status(404).json({ message: 'Estabelecimento nao encontrado' });
+    return;
+  }
+
+  res.json(saved);
+});
+
+app.delete('/api/establishments/:id', async (req, res) => {
+  await updateDb((current) => ({
+    ...current,
+    establishments: (current.establishments || buildDefaultEstablishments(current.store)).filter((item) => item.id !== req.params.id)
+  }));
+
+  res.status(204).end();
 });
 
 app.get('/api/store', async (_req, res) => {
@@ -234,4 +287,50 @@ function requireAdmin(req, res, next) {
 function getToken(req) {
   const header = req.get('authorization') || '';
   return header.startsWith('Bearer ') ? header.slice(7) : '';
+}
+
+function withPlatformDefaults(db) {
+  return {
+    ...db,
+    store: {
+      segment: 'supermercado',
+      ...db.store
+    },
+    establishments: db.establishments || buildDefaultEstablishments(db.store)
+  };
+}
+
+function buildDefaultEstablishments(store) {
+  return [normalizeEstablishment({
+    id: 'store-main',
+    name: store?.name || 'Novo estabelecimento',
+    segment: store?.segment || 'supermercado',
+    plan: 'Basico',
+    status: 'Ativo',
+    phone: store?.phone || '',
+    catalogSlug: store?.catalogSlug || 'catalogo',
+    adminUser: 'admin'
+  })];
+}
+
+function normalizeEstablishment(value) {
+  return {
+    id: value.id,
+    name: value.name || 'Novo estabelecimento',
+    segment: value.segment || 'supermercado',
+    plan: value.plan || 'Basico',
+    status: value.status || 'Ativo',
+    phone: value.phone || '',
+    catalogSlug: slugify(value.catalogSlug || value.name || 'catalogo'),
+    adminUser: value.adminUser || ''
+  };
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'catalogo';
 }

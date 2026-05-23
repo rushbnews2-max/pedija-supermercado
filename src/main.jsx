@@ -31,6 +31,16 @@ import './styles.css';
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const SEGMENTS = [
+  ['supermercado', 'Supermercado'],
+  ['pizzaria', 'Pizzaria'],
+  ['lanchonete', 'Lanchonete'],
+  ['restaurante', 'Restaurante'],
+  ['padaria', 'Padaria'],
+  ['farmacia', 'Farmacia'],
+  ['bebidas', 'Distribuidora de bebidas'],
+  ['hortifruti', 'Hortifruti']
+];
 
 async function api(path, options = {}) {
   const token = localStorage.getItem('pedija-admin-token');
@@ -150,6 +160,7 @@ const initialStore = {
   status: 'Aberto',
   address: 'Av. Principal, 1000 - Centro',
   catalogSlug: 'super-feliz',
+  segment: 'supermercado',
   bannerText: 'SuperFeliz',
   bannerUrl: '',
   logoUrl: ''
@@ -198,6 +209,7 @@ async function migrateLocalData() {
 
 function Sidebar({ page, setPage, onLogout }) {
   const links = [
+    ['master', 'Painel Master', Shield],
     ['painel', 'Painel do Sistema', Shield],
     ['estabelecimentos', 'Estabelecimentos', Store],
     ['produtos', 'Produtos', Box],
@@ -288,6 +300,7 @@ function App() {
   });
   const [authToken, setAuthToken] = React.useState(() => localStorage.getItem('pedija-admin-token') || '');
   const [storeData, setStoreData] = React.useState(initialStore);
+  const [establishments, setEstablishments] = React.useState([]);
   const [products, setProducts] = React.useState(initialProducts);
   const [orders, setOrders] = React.useState(initialOrders);
   const [loading, setLoading] = React.useState(true);
@@ -331,6 +344,7 @@ function App() {
       .then((data) => {
         if (!alive) return;
         setStoreData(data.store);
+        setEstablishments(data.establishments || buildDefaultEstablishments(data.store));
         setProducts(data.products);
         setOrders(data.orders);
         lastOrderId.current = Math.max(...data.orders.map((item) => item.id), 0);
@@ -410,6 +424,27 @@ function App() {
       body: JSON.stringify(store)
     });
     setStoreData(saved);
+  };
+
+  const createEstablishment = async (establishment) => {
+    const saved = await api('/api/establishments', {
+      method: 'POST',
+      body: JSON.stringify(establishment)
+    });
+    setEstablishments((current) => [saved, ...current]);
+  };
+
+  const updateEstablishment = async (establishment) => {
+    const saved = await api(`/api/establishments/${establishment.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(establishment)
+    });
+    setEstablishments((current) => current.map((item) => item.id === saved.id ? saved : item));
+  };
+
+  const deleteEstablishment = async (id) => {
+    await api(`/api/establishments/${id}`, { method: 'DELETE' });
+    setEstablishments((current) => current.filter((item) => item.id !== id));
   };
 
   const createProduct = async (product) => {
@@ -499,6 +534,7 @@ function App() {
     <div className="shell">
       <Sidebar page={page} setPage={setPage} onLogout={logout} />
       <main className="content">
+        {page === 'master' && <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />}
         {page === 'painel' && <Dashboard products={products} orders={orders} setPage={setPage} />}
         {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
         {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
@@ -591,6 +627,139 @@ function Metric({ label, value, icon: Icon }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  );
+}
+
+function MasterPanel({ establishments, createEstablishment, updateEstablishment, deleteEstablishment }) {
+  const [editing, setEditing] = React.useState(null);
+  const activeCount = establishments.filter((item) => item.status === 'Ativo').length;
+  const segmentCount = new Set(establishments.map((item) => item.segment)).size;
+
+  const saveEstablishment = async (establishment) => {
+    if (establishment.id) {
+      await updateEstablishment(establishment);
+    } else {
+      await createEstablishment(establishment);
+    }
+
+    setEditing(null);
+  };
+
+  const removeEstablishment = async (establishment) => {
+    if (!confirm(`Excluir o estabelecimento "${establishment.name}"?`)) return;
+    await deleteEstablishment(establishment.id);
+  };
+
+  return (
+    <>
+      <PageHeader title="Painel Master" subtitle="Administre os clientes e segmentos da plataforma">
+        <button className="orange-button" onClick={() => setEditing(createEstablishmentDraft())}>
+          <Plus size={18} /> Novo estabelecimento
+        </button>
+      </PageHeader>
+      <section className="metric-grid">
+        <Metric label="Clientes cadastrados" value={establishments.length} icon={Store} />
+        <Metric label="Clientes ativos" value={activeCount} icon={Check} />
+        <Metric label="Segmentos usados" value={segmentCount} icon={Shield} />
+      </section>
+      <section className="client-list">
+        {establishments.map((establishment) => (
+          <article className="client-card" key={establishment.id}>
+            <div className="client-main">
+              <div>
+                <h3>{establishment.name}</h3>
+                <span className="client-segment">{segmentLabel(establishment.segment)}</span>
+              </div>
+              <div className="client-meta">
+                <span><Store size={15} /> Plano {establishment.plan}</span>
+                <span><Phone size={15} /> {establishment.phone || 'Sem WhatsApp'}</span>
+                <span><ExternalLink size={15} /> /catalogo/{establishment.catalogSlug}</span>
+                <span><Users size={15} /> {establishment.adminUser || 'Sem usuario'}</span>
+              </div>
+            </div>
+            <div className="client-actions">
+              <span className={establishment.status === 'Ativo' ? 'green-pill' : 'pending-pill'}>{establishment.status}</span>
+              <button className="ghost-button" onClick={() => setEditing(establishment)}><Edit3 size={17} /> Editar</button>
+              <button className="ghost-button danger-text" onClick={() => removeEstablishment(establishment)}><Trash2 size={17} /> Excluir</button>
+            </div>
+          </article>
+        ))}
+        {!establishments.length && (
+          <article className="placeholder-panel">
+            <strong>Nenhum estabelecimento cadastrado</strong>
+            <p>Cadastre o primeiro cliente para comecar a organizar a plataforma por segmento.</p>
+          </article>
+        )}
+      </section>
+      {editing && (
+        <EstablishmentModal
+          establishment={editing}
+          onSave={saveEstablishment}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function EstablishmentModal({ establishment, onSave, onClose }) {
+  const [draft, setDraft] = React.useState(establishment);
+  const [saving, setSaving] = React.useState(false);
+  const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+
+    try {
+      await onSave({
+        ...draft,
+        catalogSlug: slugify(draft.catalogSlug || draft.name)
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="overlay">
+      <form className="modal establishment-modal" onSubmit={save}>
+        <div className="modal-head">
+          <h2>{draft.id ? 'Editar cliente' : 'Novo cliente'}</h2>
+          <button type="button" onClick={onClose}><X size={20} /></button>
+        </div>
+        <label>Nome do estabelecimento<input value={draft.name} onChange={(event) => setField('name', event.target.value)} required /></label>
+        <div className="form-grid">
+          <label>Segmento
+            <select value={draft.segment} onChange={(event) => setField('segment', event.target.value)}>
+              {SEGMENTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label>Plano
+            <select value={draft.plan} onChange={(event) => setField('plan', event.target.value)}>
+              <option>Basico</option>
+              <option>Pro</option>
+              <option>Premium</option>
+            </select>
+          </label>
+        </div>
+        <div className="form-grid">
+          <label>Status
+            <select value={draft.status} onChange={(event) => setField('status', event.target.value)}>
+              <option>Ativo</option>
+              <option>Pausado</option>
+              <option>Bloqueado</option>
+            </select>
+          </label>
+          <label>WhatsApp<input value={draft.phone} onChange={(event) => setField('phone', event.target.value)} /></label>
+        </div>
+        <div className="form-grid">
+          <label>Link do catalogo<input value={draft.catalogSlug} onChange={(event) => setField('catalogSlug', event.target.value)} /></label>
+          <label>Usuario/admin<input value={draft.adminUser} onChange={(event) => setField('adminUser', event.target.value)} /></label>
+        </div>
+        <button className="orange-button" type="submit" disabled={saving}><Check size={18} /> {saving ? 'Salvando...' : 'Salvar cliente'}</button>
+      </form>
+    </div>
   );
 }
 
@@ -1462,6 +1631,35 @@ function slugify(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'mercado';
+}
+
+function createEstablishmentDraft() {
+  return {
+    name: '',
+    segment: 'supermercado',
+    plan: 'Basico',
+    status: 'Ativo',
+    phone: '',
+    catalogSlug: '',
+    adminUser: 'admin'
+  };
+}
+
+function buildDefaultEstablishments(store) {
+  return [{
+    id: 'store-main',
+    name: store?.name || 'Novo estabelecimento',
+    segment: store?.segment || 'supermercado',
+    plan: 'Basico',
+    status: 'Ativo',
+    phone: store?.phone || '',
+    catalogSlug: store?.catalogSlug || 'catalogo',
+    adminUser: 'admin'
+  }];
+}
+
+function segmentLabel(segment) {
+  return SEGMENTS.find(([value]) => value === segment)?.[1] || segment || 'Sem segmento';
 }
 
 function getBannerStyle(store) {
