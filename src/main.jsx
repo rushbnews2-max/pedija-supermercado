@@ -565,7 +565,7 @@ function App() {
           <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />
         ) : (
           <>
-            {page === 'painel' && <Dashboard products={products} orders={orders} setPage={setPage} />}
+            {page === 'painel' && <Dashboard store={storeData} products={products} orders={orders} setPage={setPage} />}
             {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
             {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
@@ -632,9 +632,10 @@ function AutoPrintTicket({ store, order, onDone }) {
   return null;
 }
 
-function Dashboard({ products, orders, setPage }) {
+function Dashboard({ store, products, orders, setPage }) {
   const pending = orders.filter((order) => order.status === 'Pendente').length;
   const revenue = orders.filter((order) => order.status !== 'Cancelado').reduce((sum, order) => sum + orderTotal(order), 0);
+  const catalogUrl = `/catalogo/${store.catalogSlug || 'catalogo'}`;
   return (
     <>
       <PageHeader title="Painel do Sistema" subtitle="Acompanhe o movimento do mercado" />
@@ -645,7 +646,7 @@ function Dashboard({ products, orders, setPage }) {
       </section>
       <section className="quick-panel">
         <button onClick={() => setPage('produtos')}><PackagePlus size={18} /> Cadastrar produto</button>
-        <button onClick={() => setPage('catalogo')}><Eye size={18} /> Abrir catalogo</button>
+        <a href={catalogUrl}><Eye size={18} /> Abrir catalogo</a>
         <button onClick={() => setPage('pedidos')}><Printer size={18} /> Imprimir pedido</button>
       </section>
     </>

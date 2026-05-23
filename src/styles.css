@@ -228,7 +228,8 @@ a {
 
 .orange-button,
 .ghost-button,
-.quick-panel button {
+.quick-panel button,
+.quick-panel a {
   min-height: 36px;
   border-radius: 7px;
   display: inline-flex;
@@ -255,7 +256,8 @@ a {
 }
 
 .ghost-button,
-.quick-panel button {
+.quick-panel button,
+.quick-panel a {
   background: #fff;
   border: 1px solid var(--line);
   color: #1b2a41;
