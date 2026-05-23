@@ -282,6 +282,7 @@ function PageHeader({ title, subtitle, children }) {
 function App() {
   const [page, setPage] = React.useState(() => {
     if (window.location.pathname.startsWith('/catalogo')) return 'catalogo';
+    if (window.location.pathname.startsWith('/imprimir/pedido')) return 'print';
     if (window.location.pathname.startsWith('/pedido')) return 'pedido';
     return 'estabelecimentos';
   });
@@ -298,7 +299,8 @@ function App() {
   const pageRef = React.useRef(page);
   const isCatalog = page === 'catalogo';
   const isTracking = page === 'pedido';
-  const isPublicPage = isCatalog || isTracking;
+  const isPrintPage = page === 'print';
+  const isPublicPage = isCatalog || isTracking || isPrintPage;
 
   React.useEffect(() => {
     pageRef.current = page;
@@ -309,7 +311,7 @@ function App() {
     setLoading(true);
     const source = isPublicPage
       ? api('/api/public').then(async (data) => {
-        if (!isTracking) return { ...data, orders: [] };
+        if (!isTracking && !isPrintPage) return { ...data, orders: [] };
 
         const orderId = Number(window.location.pathname.split('/').filter(Boolean).pop());
         if (!orderId) return { ...data, orders: [] };
@@ -346,7 +348,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [authToken, isCatalog, isPublicPage, isTracking]);
+  }, [authToken, isCatalog, isPrintPage, isPublicPage, isTracking]);
 
   React.useEffect(() => {
     if (loading || isPublicPage || !authToken) return undefined;
@@ -470,6 +472,10 @@ function App() {
     return <OrderTracking store={storeData} order={orders[0]} loading={loading} />;
   }
 
+  if (isPrintPage) {
+    return <PrintOrderPage store={storeData} order={orders[0]} loading={loading} />;
+  }
+
   if (loading) {
     return (
       <main className="login-page">
@@ -538,39 +544,24 @@ function NewOrderAlert({ order, onClose, onOpen }) {
 
 function AutoPrintTicket({ store, order, onDone }) {
   React.useEffect(() => {
-    let finished = false;
-    let printTimeout;
-    let cleanupTimeout;
+    const frame = document.createElement('iframe');
+    frame.title = `Impressao do pedido ${order.id}`;
+    frame.className = 'print-frame';
+    frame.src = `/imprimir/pedido/${order.id}?auto=1`;
+    document.body.appendChild(frame);
 
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      delete document.body.dataset.printing;
+    const cleanupTimeout = window.setTimeout(() => {
+      frame.remove();
       onDone();
-    };
-
-    document.body.dataset.printing = 'order';
-
-    printTimeout = window.setTimeout(() => {
-      window.print();
-      cleanupTimeout = window.setTimeout(finish, 5000);
-    }, 700);
-
-    window.addEventListener('afterprint', finish, { once: true });
+    }, 9000);
 
     return () => {
-      window.clearTimeout(printTimeout);
       window.clearTimeout(cleanupTimeout);
-      window.removeEventListener('afterprint', finish);
-      if (!finished) delete document.body.dataset.printing;
+      frame.remove();
     };
-  }, [onDone]);
+  }, [onDone, order.id]);
 
-  return (
-    <div className="auto-print-ticket" aria-hidden="true">
-      <ThermalTicket store={store} order={order} />
-    </div>
-  );
+  return null;
 }
 
 function Dashboard({ products, orders, setPage }) {
@@ -1081,6 +1072,40 @@ function ThermalTicket({ store, order }) {
       <p>Pagamento: {order.payment}</p>
       <p>Status: {order.status}</p>
     </div>
+  );
+}
+
+function PrintOrderPage({ store, order, loading }) {
+  React.useEffect(() => {
+    if (loading || !order) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      window.print();
+    }, 600);
+
+    return () => window.clearTimeout(timeout);
+  }, [loading, order]);
+
+  if (loading) {
+    return (
+      <main className="print-page">
+        <p>Preparando impressao...</p>
+      </main>
+    );
+  }
+
+  if (!order) {
+    return (
+      <main className="print-page">
+        <p>Pedido nao encontrado.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="print-page">
+      <ThermalTicket store={store} order={order} />
+    </main>
   );
 }
 

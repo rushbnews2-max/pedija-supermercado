@@ -898,12 +898,28 @@ input[type="file"] {
   line-height: 1.35;
 }
 
-.auto-print-ticket {
+.print-frame {
   position: fixed;
   left: -9999px;
   top: 0;
   width: 80mm;
+  height: 120mm;
+  border: 0;
+}
+
+.print-page {
+  width: 80mm;
+  min-height: 100vh;
   background: #fff;
+  color: #000;
+  padding: 0;
+  margin: 0;
+}
+
+.print-page .thermal-ticket {
+  width: 80mm;
+  padding: 4mm;
+  box-sizing: border-box;
 }
 
 .thermal-ticket h3 {
@@ -1371,26 +1387,6 @@ input[type="file"] {
   body[data-printing="order"] .thermal-ticket,
   body[data-printing="order"] .thermal-ticket * {
     visibility: visible;
-  }
-
-  body[data-printing="order"] .auto-print-ticket,
-  body[data-printing="order"] .auto-print-ticket * {
-    visibility: visible;
-  }
-
-  body[data-printing="order"] .auto-print-ticket {
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 80mm;
-    margin: 0;
-    padding: 0;
-    background: #fff;
-  }
-
-  body[data-printing="order"] .auto-print-ticket .thermal-ticket {
-    width: 80mm;
-    padding: 4mm;
-    box-sizing: border-box;
   }
 
   body[data-printing="order"] .overlay {
