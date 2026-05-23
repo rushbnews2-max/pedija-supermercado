@@ -731,6 +731,27 @@ input[type="file"] {
   width: min(560px, 100%);
 }
 
+.access-preview {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #dbe1ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.access-preview span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.access-preview strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .overlay {
   position: fixed;
   inset: 0;

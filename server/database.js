@@ -121,7 +121,11 @@ const initialData = {
     status: 'Ativo',
     phone: initialStore.phone,
     catalogSlug: initialStore.catalogSlug,
-    adminUser: 'admin'
+    adminUser: 'admin',
+    adminPassword: 'admin123',
+    store: initialStore,
+    products: initialProducts,
+    orders: initialOrders
   }],
   products: initialProducts,
   orders: initialOrders

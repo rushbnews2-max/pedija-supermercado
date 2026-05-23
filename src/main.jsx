@@ -207,9 +207,11 @@ async function migrateLocalData() {
   return data;
 }
 
-function Sidebar({ page, setPage, onLogout }) {
-  const links = [
-    ['master', 'Painel Master', Shield],
+function Sidebar({ page, setPage, onLogout, role }) {
+  const masterLinks = [
+    ['master', 'Painel Master', Shield]
+  ];
+  const storeLinks = [
     ['painel', 'Painel do Sistema', Shield],
     ['estabelecimentos', 'Estabelecimentos', Store],
     ['produtos', 'Produtos', Box],
@@ -218,6 +220,7 @@ function Sidebar({ page, setPage, onLogout }) {
     ['cupons', 'Cupons', Tag],
     ['usuarios', 'Usuarios', Users]
   ];
+  const links = role === 'master' ? masterLinks : storeLinks;
 
   return (
     <aside className="sidebar">
@@ -241,7 +244,7 @@ function Sidebar({ page, setPage, onLogout }) {
   );
 }
 
-function LoginPage({ onLogin, loading }) {
+function LoginPage({ onLogin, loading, adminSlug }) {
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -268,7 +271,7 @@ function LoginPage({ onLogin, loading }) {
           <small>Painel administrativo</small>
         </div>
         <h1>Entrar no sistema</h1>
-        <p>Acesse o painel do estabelecimento com a senha administrativa.</p>
+        <p>{adminSlug ? 'Acesse o painel deste estabelecimento.' : 'Acesse o painel master da plataforma.'}</p>
         <label>Senha<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus required /></label>
         {error && <span className="login-error">{error}</span>}
         <button className="orange-button" type="submit" disabled={submitting || loading}>
@@ -292,13 +295,17 @@ function PageHeader({ title, subtitle, children }) {
 }
 
 function App() {
+  const routeSlug = getRouteSlug();
+  const adminSlug = getAdminSlug();
   const [page, setPage] = React.useState(() => {
     if (window.location.pathname.startsWith('/catalogo')) return 'catalogo';
     if (window.location.pathname.startsWith('/imprimir/pedido')) return 'print';
     if (window.location.pathname.startsWith('/pedido')) return 'pedido';
-    return 'estabelecimentos';
+    if (window.location.pathname.startsWith('/admin')) return 'painel';
+    return 'master';
   });
   const [authToken, setAuthToken] = React.useState(() => localStorage.getItem('pedija-admin-token') || '');
+  const [role, setRole] = React.useState('');
   const [storeData, setStoreData] = React.useState(initialStore);
   const [establishments, setEstablishments] = React.useState([]);
   const [products, setProducts] = React.useState(initialProducts);
@@ -323,14 +330,14 @@ function App() {
     let alive = true;
     setLoading(true);
     const source = isPublicPage
-      ? api('/api/public').then(async (data) => {
+      ? api(`/api/public${routeSlug ? `?slug=${encodeURIComponent(routeSlug)}` : ''}`).then(async (data) => {
         if (!isTracking && !isPrintPage) return { ...data, orders: [] };
 
         const orderId = Number(window.location.pathname.split('/').filter(Boolean).pop());
         if (!orderId) return { ...data, orders: [] };
 
         try {
-          const order = await api(`/api/public/orders/${orderId}`);
+          const order = await api(`/api/public/orders/${orderId}${routeSlug ? `?slug=${encodeURIComponent(routeSlug)}` : ''}`);
           return { ...data, orders: [order] };
         } catch {
           return { ...data, orders: [] };
@@ -343,10 +350,15 @@ function App() {
     source
       .then((data) => {
         if (!alive) return;
+        setRole(data.role || (adminSlug ? 'store' : 'master'));
         setStoreData(data.store);
         setEstablishments(data.establishments || buildDefaultEstablishments(data.store));
         setProducts(data.products);
         setOrders(data.orders);
+        if (!isPublicPage) {
+          if (data.role === 'master' && pageRef.current !== 'master') setPage('master');
+          if (data.role === 'store' && pageRef.current === 'master') setPage('painel');
+        }
         lastOrderId.current = Math.max(...data.orders.map((item) => item.id), 0);
       })
       .catch(() => {
@@ -362,7 +374,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [authToken, isCatalog, isPrintPage, isPublicPage, isTracking]);
+  }, [authToken, adminSlug, isCatalog, isPrintPage, isPublicPage, isTracking, routeSlug]);
 
   React.useEffect(() => {
     if (loading || isPublicPage || !authToken) return undefined;
@@ -402,10 +414,12 @@ function App() {
   const login = async (password) => {
     const data = await api('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ password, catalogSlug: adminSlug })
     });
     localStorage.setItem('pedija-admin-token', data.token);
+    setRole(data.role);
     setAuthToken(data.token);
+    setPage(data.role === 'master' ? 'master' : 'painel');
   };
 
   const logout = async () => {
@@ -414,7 +428,8 @@ function App() {
     } finally {
       localStorage.removeItem('pedija-admin-token');
       setAuthToken('');
-      setPage('estabelecimentos');
+      setRole('');
+      setPage(adminSlug ? 'painel' : 'master');
     }
   };
 
@@ -500,7 +515,7 @@ function App() {
   };
 
   if (isCatalog) {
-    return <Catalog store={storeData} products={products} onOrder={addOrder} />;
+    return <Catalog store={storeData} products={products} onOrder={addOrder} storeSlug={routeSlug || storeData.catalogSlug} />;
   }
 
   if (isTracking) {
@@ -527,21 +542,26 @@ function App() {
   }
 
   if (!authToken) {
-    return <LoginPage onLogin={login} loading={loading} />;
+    return <LoginPage onLogin={login} loading={loading} adminSlug={adminSlug} />;
   }
 
   return (
     <div className="shell">
-      <Sidebar page={page} setPage={setPage} onLogout={logout} />
+      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} />
       <main className="content">
-        {page === 'master' && <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />}
-        {page === 'painel' && <Dashboard products={products} orders={orders} setPage={setPage} />}
-        {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
-        {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
-        {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
-        {page === 'relatorios' && <Reports orders={orders} products={products} />}
-        {page === 'cupons' && <Coupons />}
-        {page === 'usuarios' && <UsersPage />}
+        {role === 'master' ? (
+          <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />
+        ) : (
+          <>
+            {page === 'painel' && <Dashboard products={products} orders={orders} setPage={setPage} />}
+            {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
+            {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
+            {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
+            {page === 'relatorios' && <Reports orders={orders} products={products} />}
+            {page === 'cupons' && <Coupons />}
+            {page === 'usuarios' && <UsersPage />}
+          </>
+        )}
       </main>
       {selectedOrder && (
         <OrderModal store={storeData} order={selectedOrder} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} onClose={() => setSelectedOrder(null)} />
@@ -583,7 +603,7 @@ function AutoPrintTicket({ store, order, onDone }) {
     const frame = document.createElement('iframe');
     frame.title = `Impressao do pedido ${order.id}`;
     frame.className = 'print-frame';
-    frame.src = `/imprimir/pedido/${order.id}?auto=1`;
+    frame.src = `/imprimir/pedido/${order.id}?auto=1&slug=${encodeURIComponent(store.catalogSlug || '')}`;
     document.body.appendChild(frame);
 
     const cleanupTimeout = window.setTimeout(() => {
@@ -634,6 +654,12 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
   const [editing, setEditing] = React.useState(null);
   const activeCount = establishments.filter((item) => item.status === 'Ativo').length;
   const segmentCount = new Set(establishments.map((item) => item.segment)).size;
+  const buildUrl = (path) => `${window.location.origin}${path}`;
+
+  const copyText = async (text, message) => {
+    await navigator.clipboard.writeText(text);
+    alert(message);
+  };
 
   const saveEstablishment = async (establishment) => {
     if (establishment.id) {
@@ -673,12 +699,14 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
               <div className="client-meta">
                 <span><Store size={15} /> Plano {establishment.plan}</span>
                 <span><Phone size={15} /> {establishment.phone || 'Sem WhatsApp'}</span>
-                <span><ExternalLink size={15} /> /catalogo/{establishment.catalogSlug}</span>
+                <span><ExternalLink size={15} /> /admin/{establishment.catalogSlug}</span>
                 <span><Users size={15} /> {establishment.adminUser || 'Sem usuario'}</span>
               </div>
             </div>
             <div className="client-actions">
               <span className={establishment.status === 'Ativo' ? 'green-pill' : 'pending-pill'}>{establishment.status}</span>
+              <button className="ghost-button" onClick={() => copyText(buildUrl(`/admin/${establishment.catalogSlug}`), 'Link de acesso copiado.')}><Copy size={17} /> Acesso</button>
+              <button className="ghost-button" onClick={() => copyText(buildUrl(`/catalogo/${establishment.catalogSlug}`), 'Link do catalogo copiado.')}><ExternalLink size={17} /> Catalogo</button>
               <button className="ghost-button" onClick={() => setEditing(establishment)}><Edit3 size={17} /> Editar</button>
               <button className="ghost-button danger-text" onClick={() => removeEstablishment(establishment)}><Trash2 size={17} /> Excluir</button>
             </div>
@@ -757,6 +785,13 @@ function EstablishmentModal({ establishment, onSave, onClose }) {
           <label>Link do catalogo<input value={draft.catalogSlug} onChange={(event) => setField('catalogSlug', event.target.value)} /></label>
           <label>Usuario/admin<input value={draft.adminUser} onChange={(event) => setField('adminUser', event.target.value)} /></label>
         </div>
+        <label>Senha de acesso do cliente<input value={draft.adminPassword || ''} onChange={(event) => setField('adminPassword', event.target.value)} required /></label>
+        {draft.catalogSlug && (
+          <div className="access-preview">
+            <span>Link de acesso</span>
+            <strong>{window.location.origin}/admin/{slugify(draft.catalogSlug)}</strong>
+          </div>
+        )}
         <button className="orange-button" type="submit" disabled={saving}><Check size={18} /> {saving ? 'Salvando...' : 'Salvar cliente'}</button>
       </form>
     </div>
@@ -1278,7 +1313,7 @@ function PrintOrderPage({ store, order, loading }) {
   );
 }
 
-function Catalog({ store, products, onOrder }) {
+function Catalog({ store, products, onOrder, storeSlug }) {
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
   const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
@@ -1313,6 +1348,7 @@ function Catalog({ store, products, onOrder }) {
       payment: customer.payment,
       deliveryMethod: customer.deliveryMethod,
       notes: customer.notes,
+      storeSlug,
       status: 'Pendente',
       createdAt: 'Agora',
       items
@@ -1340,7 +1376,7 @@ function Catalog({ store, products, onOrder }) {
               <strong>Pedido enviado</strong>
               <span>Pedido #{sentOrder.id} recebido. Total {BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.</span>
               <div className="success-actions">
-                <a href={`/pedido/${sentOrder.id}`}>Acompanhar status</a>
+                <a href={`/pedido/${sentOrder.id}?slug=${encodeURIComponent(storeSlug || store.catalogSlug || '')}`}>Acompanhar status</a>
                 <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
               </div>
             </div>
@@ -1641,7 +1677,8 @@ function createEstablishmentDraft() {
     status: 'Ativo',
     phone: '',
     catalogSlug: '',
-    adminUser: 'admin'
+    adminUser: 'admin',
+    adminPassword: generateAccessPassword()
   };
 }
 
@@ -1654,12 +1691,32 @@ function buildDefaultEstablishments(store) {
     status: 'Ativo',
     phone: store?.phone || '',
     catalogSlug: store?.catalogSlug || 'catalogo',
-    adminUser: 'admin'
+    adminUser: 'admin',
+    adminPassword: 'admin123'
   }];
 }
 
 function segmentLabel(segment) {
   return SEGMENTS.find(([value]) => value === segment)?.[1] || segment || 'Sem segmento';
+}
+
+function generateAccessPassword() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function getRouteSlug() {
+  const querySlug = new URLSearchParams(window.location.search).get('slug');
+  if (querySlug) return querySlug;
+
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'catalogo') return parts[1] || '';
+  return '';
+}
+
+function getAdminSlug() {
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'admin') return parts[1] || '';
+  return '';
 }
 
 function getBannerStyle(store) {
