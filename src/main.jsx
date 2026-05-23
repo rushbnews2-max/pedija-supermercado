@@ -245,6 +245,7 @@ function Sidebar({ page, setPage, onLogout, role }) {
 }
 
 function LoginPage({ onLogin, loading, adminSlug }) {
+  const [user, setUser] = React.useState('admin');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
@@ -255,9 +256,9 @@ function LoginPage({ onLogin, loading, adminSlug }) {
     setSubmitting(true);
 
     try {
-      await onLogin(password);
+      await onLogin({ user, password });
     } catch {
-      setError('Senha incorreta. Tente novamente.');
+      setError('Usuario ou senha incorretos. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
@@ -272,7 +273,8 @@ function LoginPage({ onLogin, loading, adminSlug }) {
         </div>
         <h1>Entrar no sistema</h1>
         <p>{adminSlug ? 'Acesse o painel deste estabelecimento.' : 'Acesse o painel master da plataforma.'}</p>
-        <label>Senha<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus required /></label>
+        {adminSlug && <label>Usuario<input value={user} onChange={(event) => setUser(event.target.value)} autoFocus required /></label>}
+        <label>Senha<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus={!adminSlug} required /></label>
         {error && <span className="login-error">{error}</span>}
         <button className="orange-button" type="submit" disabled={submitting || loading}>
           <Shield size={18} /> {submitting ? 'Entrando...' : 'Entrar'}
@@ -421,10 +423,10 @@ function App() {
     localStorage.setItem('pedija-auto-print', enabled ? 'yes' : 'no');
   };
 
-  const login = async (password) => {
+  const login = async ({ user, password }) => {
     const data = await api('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ password, catalogSlug: adminSlug })
+      body: JSON.stringify({ user, password, catalogSlug: adminSlug })
     });
     localStorage.setItem('pedija-admin-token', data.token);
     setRole(data.role);

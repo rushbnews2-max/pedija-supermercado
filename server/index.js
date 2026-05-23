@@ -24,7 +24,9 @@ app.post('/api/login', (req, res) => {
   if (catalogSlug) {
     ensurePlatformDefaults().then((db) => {
       const establishment = withPlatformDefaults(db).establishments.find((item) => item.catalogSlug === catalogSlug);
-      if (!establishment || req.body?.password !== establishment.adminPassword) {
+      const user = String(req.body?.user || '').trim();
+      const expectedUser = String(establishment?.adminUser || 'admin').trim();
+      if (!establishment || user !== expectedUser || req.body?.password !== establishment.adminPassword) {
         res.status(401).json({ message: 'Senha invalida' });
         return;
       }
@@ -458,10 +460,32 @@ function establishmentToStore(establishment) {
 
 function getPublicStore(db, slug) {
   const data = withPlatformDefaults(db);
-  const catalogSlug = slugify(slug || data.store.catalogSlug || 'catalogo');
+  const requestedSlug = String(slug || '').trim();
+  const catalogSlug = slugify(requestedSlug || data.store.catalogSlug || 'catalogo');
   const establishment = data.establishments.find((item) => item.catalogSlug === catalogSlug);
 
   if (!establishment) {
+    if (requestedSlug) {
+      return {
+        establishmentId: null,
+        store: {
+          name: 'Catalogo nao encontrado',
+          type: 'Estabelecimento',
+          phone: '',
+          hours: '',
+          status: 'Fechado',
+          address: '',
+          catalogSlug,
+          segment: 'estabelecimento',
+          bannerText: 'Catalogo nao encontrado',
+          bannerUrl: '',
+          logoUrl: ''
+        },
+        products: [],
+        orders: []
+      };
+    }
+
     return {
       store: data.store,
       products: data.products || [],
