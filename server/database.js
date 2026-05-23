@@ -125,10 +125,12 @@ const initialData = {
     adminPassword: 'admin123',
     store: initialStore,
     products: initialProducts,
-    orders: initialOrders
+    orders: initialOrders,
+    coupons: []
   }],
   products: initialProducts,
-  orders: initialOrders
+  orders: initialOrders,
+  coupons: []
 };
 
 export async function readDb() {

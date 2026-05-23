@@ -59,7 +59,8 @@ app.get('/api/public', async (req, res) => {
   const scoped = getPublicStore(db, req.query.slug);
   res.json({
     store: scoped.store,
-    products: scoped.products.filter((product) => product.active)
+    products: scoped.products.filter((product) => product.active),
+    coupons: scoped.coupons.filter((coupon) => coupon.active)
   });
 });
 
@@ -88,6 +89,7 @@ app.use('/api/migrate-local', requireAdmin);
 app.use('/api/establishments', requireMaster);
 app.use('/api/store', requireAdmin);
 app.use('/api/products', requireAdmin);
+app.use('/api/coupons', requireAdmin);
 app.use('/api/orders', (req, res, next) => {
   if (req.method === 'POST') return next();
   return requireAdmin(req, res, next);
@@ -104,7 +106,8 @@ app.get('/api/bootstrap', async (req, res) => {
       role: 'store',
       store: scoped.store,
       products: scoped.products,
-      orders: scoped.orders
+      orders: scoped.orders,
+      coupons: scoped.coupons
     });
     return;
   }
@@ -113,7 +116,8 @@ app.get('/api/bootstrap', async (req, res) => {
     ...data,
     role: 'master',
     products: [],
-    orders: []
+    orders: [],
+    coupons: []
   });
 });
 
@@ -286,6 +290,42 @@ app.delete('/api/products/:id', async (req, res) => {
   res.status(204).end();
 });
 
+app.get('/api/coupons', async (req, res) => {
+  const db = await readDb();
+  res.json(getStoreBySession(withPlatformDefaults(db), getSession(req)).coupons);
+});
+
+app.post('/api/coupons', async (req, res) => {
+  const session = getSession(req);
+  const coupon = normalizeCoupon({
+    ...req.body,
+    id: req.body.id || crypto.randomUUID()
+  });
+
+  await updateDb((current) => updateScopedCoupons(current, session, (coupons) => [coupon, ...coupons]));
+
+  res.status(201).json(coupon);
+});
+
+app.put('/api/coupons/:id', async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateScopedCoupons(current, session, (coupons) => coupons.map((coupon) => {
+    if (coupon.id !== req.params.id) return coupon;
+    saved = normalizeCoupon({ ...coupon, ...req.body, id: coupon.id });
+    return saved;
+  })));
+
+  res.json(saved);
+});
+
+app.delete('/api/coupons/:id', async (req, res) => {
+  const session = getSession(req);
+  await updateDb((current) => updateScopedCoupons(current, session, (coupons) => coupons.filter((coupon) => coupon.id !== req.params.id)));
+
+  res.status(204).end();
+});
+
 app.get('/api/orders', async (req, res) => {
   const db = await readDb();
   res.json(getStoreBySession(withPlatformDefaults(db), getSession(req)).orders);
@@ -394,7 +434,8 @@ function withPlatformDefaults(db) {
       ...item,
       store: item.store || (item.id === 'store-main' ? db.store : undefined),
       products: Array.isArray(item.products) ? item.products : (item.id === 'store-main' ? db.products : []),
-      orders: Array.isArray(item.orders) ? item.orders : (item.id === 'store-main' ? db.orders : [])
+      orders: Array.isArray(item.orders) ? item.orders : (item.id === 'store-main' ? db.orders : []),
+      coupons: Array.isArray(item.coupons) ? item.coupons : (item.id === 'store-main' ? db.coupons : [])
     }))
   };
 }
@@ -412,7 +453,8 @@ function buildDefaultEstablishments(store) {
     adminPassword: 'admin123',
     store,
     products: [],
-    orders: []
+    orders: [],
+    coupons: []
   })];
 }
 
@@ -434,7 +476,20 @@ function normalizeEstablishment(value) {
     adminPassword: value.adminPassword || generateAccessPassword(),
     store,
     products: Array.isArray(value.products) ? value.products : [],
-    orders: Array.isArray(value.orders) ? value.orders : []
+    orders: Array.isArray(value.orders) ? value.orders : [],
+    coupons: Array.isArray(value.coupons) ? value.coupons.map((coupon) => normalizeCoupon(coupon)) : []
+  };
+}
+
+function normalizeCoupon(value) {
+  const type = value.type === 'fixed' ? 'fixed' : 'percent';
+  return {
+    id: value.id,
+    code: String(value.code || '').trim().toUpperCase(),
+    type,
+    value: Math.max(0, Number(value.value || 0)),
+    minOrder: Math.max(0, Number(value.minOrder || 0)),
+    active: value.active !== false
   };
 }
 
@@ -482,14 +537,16 @@ function getPublicStore(db, slug) {
           logoUrl: ''
         },
         products: [],
-        orders: []
+        orders: [],
+        coupons: []
       };
     }
 
     return {
       store: data.store,
       products: data.products || [],
-      orders: data.orders || []
+      orders: data.orders || [],
+      coupons: data.coupons || []
     };
   }
 
@@ -500,7 +557,8 @@ function getPublicStore(db, slug) {
       ...establishment.store
     },
     products: establishment.products || [],
-    orders: establishment.orders || []
+    orders: establishment.orders || [],
+    coupons: establishment.coupons || []
   };
 }
 
@@ -509,12 +567,13 @@ function getStoreBySession(db, session) {
     return {
       store: db.store,
       products: db.products || [],
-      orders: db.orders || []
+      orders: db.orders || [],
+      coupons: db.coupons || []
     };
   }
 
   const establishment = db.establishments.find((item) => item.id === session.establishmentId);
-  if (!establishment) return { store: db.store, products: [], orders: [] };
+  if (!establishment) return { store: db.store, products: [], orders: [], coupons: [] };
 
   return {
     store: {
@@ -522,7 +581,8 @@ function getStoreBySession(db, session) {
       ...establishment.store
     },
     products: establishment.products || [],
-    orders: establishment.orders || []
+    orders: establishment.orders || [],
+    coupons: establishment.coupons || []
   };
 }
 
@@ -561,6 +621,20 @@ function updateScopedOrders(db, session, updater) {
   return {
     ...db,
     orders: updater(db.orders || [])
+  };
+}
+
+function updateScopedCoupons(db, session, updater) {
+  if (session.role === 'store') {
+    return updateStoreEstablishment(db, session.establishmentId, (establishment) => ({
+      ...establishment,
+      coupons: updater(establishment.coupons || [])
+    }));
+  }
+
+  return {
+    ...db,
+    coupons: updater(db.coupons || [])
   };
 }
 

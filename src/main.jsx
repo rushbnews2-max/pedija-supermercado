@@ -312,6 +312,7 @@ function App() {
   const [establishments, setEstablishments] = React.useState([]);
   const [products, setProducts] = React.useState(initialProducts);
   const [orders, setOrders] = React.useState(initialOrders);
+  const [coupons, setCoupons] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [newOrderAlert, setNewOrderAlert] = React.useState(null);
@@ -367,6 +368,7 @@ function App() {
         setEstablishments(data.establishments || buildDefaultEstablishments(data.store));
         setProducts(data.products);
         setOrders(data.orders);
+        setCoupons(data.coupons || []);
         if (!isPublicPage) {
           if (data.role === 'master' && pageRef.current !== 'master') setPage('master');
           if (data.role === 'store' && pageRef.current === 'master') setPage('painel');
@@ -503,6 +505,27 @@ function App() {
     setProducts(saved);
   };
 
+  const createCoupon = async (coupon) => {
+    const saved = await api('/api/coupons', {
+      method: 'POST',
+      body: JSON.stringify(coupon)
+    });
+    setCoupons((current) => [saved, ...current]);
+  };
+
+  const updateCoupon = async (coupon) => {
+    const saved = await api(`/api/coupons/${coupon.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(coupon)
+    });
+    setCoupons((current) => current.map((item) => item.id === saved.id ? saved : item));
+  };
+
+  const deleteCoupon = async (id) => {
+    await api(`/api/coupons/${id}`, { method: 'DELETE' });
+    setCoupons((current) => current.filter((item) => item.id !== id));
+  };
+
   const addOrder = async (order) => {
     const saved = await api('/api/orders', {
       method: 'POST',
@@ -527,7 +550,7 @@ function App() {
   };
 
   if (isCatalog) {
-    return <Catalog store={storeData} products={products} onOrder={addOrder} storeSlug={routeSlug || storeData.catalogSlug} />;
+    return <Catalog store={storeData} products={products} coupons={coupons} onOrder={addOrder} storeSlug={routeSlug || storeData.catalogSlug} />;
   }
 
   if (isTracking) {
@@ -570,7 +593,7 @@ function App() {
             {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
-            {page === 'cupons' && <Coupons />}
+            {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
             {page === 'usuarios' && <UsersPage />}
           </>
         )}
@@ -1264,6 +1287,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
 }
 
 function ThermalTicket({ store, order }) {
+  const discount = Number(order.discount || 0);
   return (
     <div className="thermal-ticket">
       <h3>{store.name}</h3>
@@ -1284,6 +1308,12 @@ function ThermalTicket({ store, order }) {
         </div>
       ))}
       <hr />
+      {discount > 0 && (
+        <div className="ticket-line">
+          <span>Desconto {order.coupon ? `(${order.coupon})` : ''}</span>
+          <strong>-{BRL.format(discount)}</strong>
+        </div>
+      )}
       <div className="ticket-line total">
         <span>Total</span>
         <strong>{BRL.format(orderTotal(order))}</strong>
@@ -1328,18 +1358,23 @@ function PrintOrderPage({ store, order, loading }) {
   );
 }
 
-function Catalog({ store, products, onOrder, storeSlug }) {
+function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
   const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
   const [checkoutStep, setCheckoutStep] = React.useState('products');
+  const [couponCode, setCouponCode] = React.useState('');
+  const [appliedCoupon, setAppliedCoupon] = React.useState(null);
+  const [couponMessage, setCouponMessage] = React.useState('');
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((item) => item.id === id);
     return product ? { productId: id, name: product.name, price: product.price, qty } : null;
   }).filter(Boolean);
-  const total = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
+  const total = Math.max(0, subtotal - discount);
 
   const add = (id) => setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
   const remove = (id) => setCart((current) => {
@@ -1347,6 +1382,26 @@ function Catalog({ store, products, onOrder, storeSlug }) {
     if (next[id] <= 0) delete next[id];
     return next;
   });
+
+  const applyCoupon = () => {
+    const code = couponCode.trim().toUpperCase();
+    const coupon = coupons.find((item) => item.active && item.code === code);
+
+    if (!coupon) {
+      setAppliedCoupon(null);
+      setCouponMessage('Cupom invalido ou inativo.');
+      return;
+    }
+
+    if (subtotal < coupon.minOrder) {
+      setAppliedCoupon(null);
+      setCouponMessage(`Pedido minimo de ${BRL.format(coupon.minOrder)} para usar este cupom.`);
+      return;
+    }
+
+    setAppliedCoupon(coupon);
+    setCouponMessage(`Cupom ${coupon.code} aplicado.`);
+  };
 
   const submitOrder = async (event) => {
     event.preventDefault();
@@ -1364,6 +1419,8 @@ function Catalog({ store, products, onOrder, storeSlug }) {
       deliveryMethod: customer.deliveryMethod,
       notes: customer.notes,
       storeSlug,
+      coupon: appliedCoupon ? appliedCoupon.code : '',
+      discount,
       status: 'Pendente',
       createdAt: 'Agora',
       items
@@ -1454,6 +1511,12 @@ function Catalog({ store, products, onOrder, storeSlug }) {
               </div>
             )) : <p className="empty">Escolha produtos no catalogo.</p>}
             <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
+            <div className="coupon-box">
+              <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
+              <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
+              {couponMessage && <span>{couponMessage}</span>}
+              {discount > 0 && <strong>Desconto {BRL.format(discount)}</strong>}
+            </div>
             <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
             <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
             <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
@@ -1535,16 +1598,78 @@ function Reports({ orders, products }) {
   );
 }
 
-function Coupons() {
+function Coupons({ coupons, createCoupon, updateCoupon, deleteCoupon }) {
+  const [editing, setEditing] = React.useState(null);
+
+  const removeCoupon = (coupon) => {
+    if (confirm(`Excluir o cupom "${coupon.code}"?`)) {
+      deleteCoupon(coupon.id);
+    }
+  };
+
   return (
     <>
-      <PageHeader title="Cupons" subtitle="Cadastre descontos para o catalogo" />
-      <section className="placeholder-panel">
-        <Tag size={24} />
-        <h2>10OFF</h2>
-        <p>Exemplo de cupom ativo para pedidos acima de R$ 80,00.</p>
+      <PageHeader title="Cupons" subtitle="Cadastre descontos para o catalogo">
+        <button className="orange-button" onClick={() => setEditing({ code: '', type: 'percent', value: 10, minOrder: 0, active: true })}><Plus size={18} /> Novo cupom</button>
+      </PageHeader>
+      <section className="coupon-list">
+        {coupons.map((coupon) => (
+          <article className="coupon-card" key={coupon.id}>
+            <div>
+              <h3>{coupon.code}</h3>
+              <p>{coupon.type === 'percent' ? `${coupon.value}% de desconto` : `${BRL.format(coupon.value)} de desconto`} acima de {BRL.format(coupon.minOrder)}</p>
+            </div>
+            <span className={coupon.active ? 'green-pill' : 'pending-pill'}>{coupon.active ? 'Ativo' : 'Inativo'}</span>
+            <div className="row-actions">
+              <button aria-label="Editar" onClick={() => setEditing(coupon)}><Edit3 size={18} /></button>
+              <button aria-label="Excluir" className="danger" onClick={() => removeCoupon(coupon)}><Trash2 size={18} /></button>
+            </div>
+          </article>
+        ))}
+        {!coupons.length && (
+          <article className="placeholder-panel">
+            <Tag size={24} />
+            <h2>Nenhum cupom cadastrado</h2>
+            <p>Crie cupons para incentivar pedidos no catalogo.</p>
+          </article>
+        )}
       </section>
+      {editing && (
+        <CouponModal
+          coupon={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (coupon) => {
+            if (coupon.id) await updateCoupon(coupon);
+            else await createCoupon(coupon);
+            setEditing(null);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function CouponModal({ coupon, onSave, onClose }) {
+  const [draft, setDraft] = React.useState(coupon);
+  const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <div className="overlay">
+      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, code: draft.code.trim().toUpperCase(), value: Number(draft.value), minOrder: Number(draft.minOrder) }); }}>
+        <div className="modal-head">
+          <h2>{draft.id ? 'Editar cupom' : 'Novo cupom'}</h2>
+          <button type="button" onClick={onClose}><X size={20} /></button>
+        </div>
+        <label>Codigo<input value={draft.code} onChange={(event) => setField('code', event.target.value.toUpperCase())} placeholder="10OFF" required /></label>
+        <div className="form-grid">
+          <label>Tipo<select value={draft.type} onChange={(event) => setField('type', event.target.value)}><option value="percent">Porcentagem</option><option value="fixed">Valor fixo</option></select></label>
+          <label>Valor<input type="number" step="0.01" value={draft.value} onChange={(event) => setField('value', event.target.value)} required /></label>
+        </div>
+        <label>Pedido minimo<input type="number" step="0.01" value={draft.minOrder} onChange={(event) => setField('minOrder', event.target.value)} /></label>
+        <label className="check-line"><input type="checkbox" checked={draft.active} onChange={(event) => setField('active', event.target.checked)} /> Cupom ativo</label>
+        <button className="orange-button" type="submit"><Check size={18} /> Salvar cupom</button>
+      </form>
+    </div>
   );
 }
 
@@ -1800,7 +1925,14 @@ function onlyDigits(value) {
 }
 
 function orderTotal(order) {
-  return order.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const subtotal = order.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  return Math.max(0, subtotal - Number(order.discount || 0));
+}
+
+function couponDiscount(coupon, subtotal) {
+  if (!coupon || subtotal < Number(coupon.minOrder || 0)) return 0;
+  if (coupon.type === 'fixed') return Math.min(subtotal, Number(coupon.value || 0));
+  return Math.min(subtotal, subtotal * (Number(coupon.value || 0) / 100));
 }
 
 createRoot(document.getElementById('root')).render(<App />);
