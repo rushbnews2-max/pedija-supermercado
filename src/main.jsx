@@ -1375,6 +1375,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
   const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
   const total = Math.max(0, subtotal - discount);
+  const catalogCategories = groupProductsByCategory(activeProducts);
 
   const add = (id) => setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
   const remove = (id) => setCart((current) => {
@@ -1479,22 +1480,33 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 <Search size={18} />
                 <input placeholder="Buscar produto" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
-              <div className="catalog-grid">
-                {activeProducts.map((product) => (
-                  <article className="catalog-item" key={product.id}>
-                    <ProductThumb product={product} />
-                    <div>
-                      <span>{product.category}</span>
-                      <h2>{product.name}</h2>
-                      <strong>{BRL.format(product.price)}</strong>
+              <div className="catalog-sections">
+                {catalogCategories.map(([category, categoryProducts]) => (
+                  <section className="catalog-category" key={category}>
+                    <div className="catalog-category-head">
+                      <h2>{category}</h2>
+                      <span>{categoryProducts.length} itens</span>
                     </div>
-                    <div className="stepper">
-                      <button onClick={() => remove(product.id)}>-</button>
-                      <b>{cart[product.id] || 0}</b>
-                      <button onClick={() => add(product.id)}>+</button>
+                    <div className="catalog-grid">
+                      {categoryProducts.map((product) => (
+                        <article className="catalog-item" key={product.id}>
+                          <ProductThumb product={product} />
+                          <div>
+                            <span>{product.category}</span>
+                            <h3>{product.name}</h3>
+                            <strong>{BRL.format(product.price)}</strong>
+                          </div>
+                          <div className="stepper">
+                            <button onClick={() => remove(product.id)}>-</button>
+                            <b>{cart[product.id] || 0}</b>
+                            <button onClick={() => add(product.id)}>+</button>
+                          </div>
+                        </article>
+                      ))}
                     </div>
-                  </article>
+                  </section>
                 ))}
+                {!catalogCategories.length && <p className="empty">Nenhum produto encontrado.</p>}
               </div>
             </div>
           </>
@@ -1937,6 +1949,19 @@ function couponDiscount(coupon, subtotal) {
   if (!coupon || subtotal < Number(coupon.minOrder || 0)) return 0;
   if (coupon.type === 'fixed') return Math.min(subtotal, Number(coupon.value || 0));
   return Math.min(subtotal, subtotal * (Number(coupon.value || 0) / 100));
+}
+
+function groupProductsByCategory(products) {
+  const groups = new Map();
+
+  products.forEach((product) => {
+    const category = product.category || 'Sem categoria';
+    const list = groups.get(category) || [];
+    list.push(product);
+    groups.set(category, list);
+  });
+
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
 }
 
 createRoot(document.getElementById('root')).render(<App />);

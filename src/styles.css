@@ -1185,26 +1185,71 @@ input[type="file"] {
   padding: 0;
 }
 
-.catalog-grid {
+.catalog-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 22px;
+}
+
+.catalog-category {
+  display: grid;
   gap: 12px;
 }
 
-.catalog-item {
-  min-height: 112px;
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 12px;
+.catalog-category-head {
+  min-height: 58px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 9px;
+  background: var(--orange);
+  color: #fff;
+  padding: 0 18px;
+}
+
+.catalog-category-head h2 {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 34px);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.catalog-category-head span {
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 250px);
+  grid-template-columns: none;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  padding: 2px 4px 12px;
+  scrollbar-width: thin;
+}
+
+.catalog-item {
+  min-height: 330px;
+  display: grid;
+  grid-template-rows: 132px minmax(124px, 1fr) auto;
+  gap: 10px;
+  align-items: start;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px;
+  scroll-snap-align: start;
 }
 
 .catalog-item .product-thumb {
-  width: 72px;
+  width: 100%;
+  height: 132px;
+  object-fit: contain;
+  background: #fff;
 }
 
 .catalog-item span {
@@ -1212,9 +1257,11 @@ input[type="file"] {
   font-size: 12px;
 }
 
-.catalog-item h2 {
+.catalog-item h3 {
   font-size: 17px;
-  margin: 4px 0;
+  line-height: 1.35;
+  margin: 4px 0 10px;
+  min-height: 68px;
 }
 
 .stepper {
@@ -1222,6 +1269,7 @@ input[type="file"] {
   grid-template-columns: 34px 28px 34px;
   align-items: center;
   justify-items: center;
+  justify-self: start;
 }
 
 .cart-panel {
@@ -1505,6 +1553,29 @@ input[type="file"] {
   .catalog-cart-summary .orange-button {
     grid-column: auto;
     width: auto;
+  }
+
+  .catalog-category-head {
+    min-height: 50px;
+    padding: 0 14px;
+  }
+
+  .catalog-grid {
+    grid-auto-columns: minmax(178px, 210px);
+  }
+
+  .catalog-item {
+    min-height: 306px;
+    grid-template-rows: 112px minmax(122px, 1fr) auto;
+    padding: 12px;
+  }
+
+  .catalog-item .product-thumb {
+    height: 112px;
+  }
+
+  .catalog-item h3 {
+    font-size: 15px;
   }
 
   .product-row {
