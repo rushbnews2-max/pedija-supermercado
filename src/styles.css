@@ -890,6 +890,15 @@ input[type="file"] {
   align-items: center;
 }
 
+.client-actions button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.master-status {
+  max-width: 760px;
+}
+
 .danger-text {
   color: #e11d48;
 }

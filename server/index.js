@@ -194,10 +194,26 @@ app.put('/api/establishments/:id', async (req, res) => {
 });
 
 app.delete('/api/establishments/:id', async (req, res) => {
-  await updateDb((current) => ({
-    ...current,
-    establishments: (current.establishments || buildDefaultEstablishments(current.store)).filter((item) => item.id !== req.params.id)
-  }));
+  if (req.params.id === 'store-main') {
+    res.status(400).json({ message: 'O estabelecimento principal nao pode ser excluido.' });
+    return;
+  }
+
+  let removed = false;
+  await updateDb((current) => {
+    const establishments = current.establishments || buildDefaultEstablishments(current.store);
+    removed = establishments.some((item) => item.id === req.params.id);
+
+    return {
+      ...current,
+      establishments: establishments.filter((item) => item.id !== req.params.id)
+    };
+  });
+
+  if (!removed) {
+    res.status(404).json({ message: 'Estabelecimento nao encontrado.' });
+    return;
+  }
 
   res.status(204).end();
 });

@@ -739,6 +739,8 @@ function Metric({ label, value, icon: Icon }) {
 
 function MasterPanel({ establishments, createEstablishment, updateEstablishment, deleteEstablishment }) {
   const [editing, setEditing] = React.useState(null);
+  const [actionStatus, setActionStatus] = React.useState('');
+  const [deletingId, setDeletingId] = React.useState('');
   const activeCount = establishments.filter((item) => item.status === 'Ativo').length;
   const segmentCount = new Set(establishments.map((item) => item.segment)).size;
   const buildUrl = (path) => `${window.location.origin}${path}`;
@@ -749,6 +751,7 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
   };
 
   const saveEstablishment = async (establishment) => {
+    setActionStatus('');
     if (establishment.id) {
       await updateEstablishment(establishment);
     } else {
@@ -759,8 +762,16 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
   };
 
   const removeEstablishment = async (establishment) => {
+    setActionStatus('');
     if (!confirm(`Excluir o estabelecimento "${establishment.name}"?`)) return;
-    await deleteEstablishment(establishment.id);
+    setDeletingId(establishment.id);
+    try {
+      await deleteEstablishment(establishment.id);
+    } catch (error) {
+      setActionStatus(error.message || 'Nao consegui excluir este estabelecimento.');
+    } finally {
+      setDeletingId('');
+    }
   };
 
   return (
@@ -775,6 +786,7 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
         <Metric label="Clientes ativos" value={activeCount} icon={Check} />
         <Metric label="Segmentos usados" value={segmentCount} icon={Shield} />
       </section>
+      {actionStatus && <p className="form-status error-status master-status">{actionStatus}</p>}
       <section className="client-list">
         {establishments.map((establishment) => (
           <article className="client-card" key={establishment.id}>
@@ -797,7 +809,7 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
               <button className="ghost-button" onClick={() => copyText(buildUrl(`/admin/${establishment.catalogSlug}`), 'Link de acesso copiado.')}><Copy size={17} /> Acesso</button>
               <button className="ghost-button" onClick={() => copyText(buildUrl(`/catalogo/${establishment.catalogSlug}`), 'Link do catalogo copiado.')}><ExternalLink size={17} /> Catalogo</button>
               <button className="ghost-button" onClick={() => setEditing(establishment)}><Edit3 size={17} /> Editar</button>
-              <button className="ghost-button danger-text" onClick={() => removeEstablishment(establishment)}><Trash2 size={17} /> Excluir</button>
+              <button className="ghost-button danger-text" disabled={deletingId === establishment.id} onClick={() => removeEstablishment(establishment)}><Trash2 size={17} /> {deletingId === establishment.id ? 'Excluindo...' : 'Excluir'}</button>
             </div>
           </article>
         ))}
