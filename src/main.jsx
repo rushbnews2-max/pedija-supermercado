@@ -1069,7 +1069,13 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
           <div className="product-groups">
             {productsByCategory.map(([category, categoryProducts]) => (
               <section key={category}>
-                <h3>{category}</h3>
+                <div className="product-group-head">
+                  <h3>{category}</h3>
+                  <div className="category-actions">
+                    <button type="button" disabled={categories.indexOf(category) === 0} onClick={() => moveCategory(category, 'up')} aria-label={`Subir categoria ${category}`}><ChevronUp size={16} /> Subir</button>
+                    <button type="button" disabled={categories.indexOf(category) === categories.length - 1} onClick={() => moveCategory(category, 'down')} aria-label={`Descer categoria ${category}`}><ChevronDown size={16} /> Descer</button>
+                  </div>
+                </div>
                 {categoryProducts.map((product, index) => (
                   <ProductRow
                     key={product.id}
@@ -1099,8 +1105,8 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
               <strong>{category}</strong>
               <span>{products.filter((product) => product.category === category).length} produtos</span>
               <div className="category-actions">
-                <button type="button" disabled={index === 0} onClick={() => moveCategory(category, 'up')}>Subir</button>
-                <button type="button" disabled={index === categories.length - 1} onClick={() => moveCategory(category, 'down')}>Descer</button>
+                <button type="button" disabled={index === 0} onClick={() => moveCategory(category, 'up')} aria-label={`Subir categoria ${category}`}><ChevronUp size={16} /> Subir</button>
+                <button type="button" disabled={index === categories.length - 1} onClick={() => moveCategory(category, 'down')} aria-label={`Descer categoria ${category}`}><ChevronDown size={16} /> Descer</button>
               </div>
             </article>
           ))}

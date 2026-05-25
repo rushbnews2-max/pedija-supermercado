@@ -470,6 +470,19 @@ input[type="file"] {
   font-size: 17px;
 }
 
+.product-group-head {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.product-group-head h3 {
+  margin: 0;
+}
+
 .product-row {
   min-height: 80px;
   display: grid;
@@ -778,6 +791,10 @@ input[type="file"] {
   color: #334155;
   font-weight: 800;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
 }
 
 .client-list {
@@ -1824,6 +1841,11 @@ input[type="file"] {
 
   .product-row {
     grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+
+  .product-group-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .product-row .promo-pill,
