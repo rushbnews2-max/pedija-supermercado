@@ -1229,6 +1229,7 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
     }
   };
   const whatsappUrl = buildCustomerStatusWhatsapp(order);
+  const courierLocationUrl = order.location?.mapsUrl ? buildCourierLocationWhatsapp(order) : '';
 
   return (
     <article className="order-card" onClick={onOpen}>
@@ -1249,6 +1250,8 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
         <button onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}>Saiu</button>
         <button onClick={() => updateOrderStatus(order.id, 'Entregue')}>Entregar</button>
         <button onClick={() => updateOrderStatus(order.id, 'Cancelado')}>Cancelar</button>
+        {order.location?.mapsUrl && <a href={order.location.mapsUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> GPS</a>}
+        {courierLocationUrl && <a href={courierLocationUrl} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Local</a>}
         <a href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={14} /> WhatsApp</a>
         <button className="danger-text" onClick={removeOrder}><Trash2 size={14} /> Excluir</button>
       </div>
@@ -1271,6 +1274,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
     }
   };
   const whatsappUrl = buildCustomerStatusWhatsapp(order);
+  const courierLocationUrl = order.location?.mapsUrl ? buildCourierLocationWhatsapp(order) : '';
 
   return (
     <div className="overlay">
@@ -1284,6 +1288,8 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Em separacao')}><Box size={17} /> Em separacao</button>
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}><ShoppingBag size={17} /> Saiu para entrega</button>
           <button className="ghost-button" onClick={() => updateOrderStatus(order.id, 'Entregue')}><Check size={17} /> Marcar entregue</button>
+          {order.location?.mapsUrl && <a className="ghost-button" href={order.location.mapsUrl} target="_blank" rel="noreferrer"><MapPin size={17} /> Abrir GPS</a>}
+          {courierLocationUrl && <a className="ghost-button" href={courierLocationUrl} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Enviar localizacao</a>}
           <a className="ghost-button" href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Enviar status</a>
           <button className="ghost-button danger-button" onClick={removeOrder}><Trash2 size={17} /> Excluir</button>
           <button className="orange-button" onClick={printOrder}><Printer size={17} /> Imprimir termica</button>
@@ -2023,6 +2029,18 @@ function buildPaymentProofWhatsapp(store, order) {
   ].join('\n');
 
   return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildCourierLocationWhatsapp(order) {
+  const message = [
+    `Entrega do pedido #${order.id}`,
+    `Cliente: ${order.customer}`,
+    `Telefone: ${order.phone}`,
+    `Endereco: ${order.address}`,
+    order.location?.mapsUrl ? `Abrir no GPS: ${order.location.mapsUrl}` : ''
+  ].filter(Boolean).join('\n');
+
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
 async function reverseGeocode(latitude, longitude) {
