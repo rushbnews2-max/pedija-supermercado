@@ -163,7 +163,9 @@ const initialStore = {
   segment: 'supermercado',
   bannerText: 'SuperFeliz',
   bannerUrl: '',
-  logoUrl: ''
+  logoUrl: '',
+  pixKey: '',
+  pixName: 'Super Feliz Super Mercado'
 };
 
 function LogoMark({ store }) {
@@ -951,6 +953,10 @@ function StoreModal({ store, onSave, onClose }) {
           <label>Horario<input value={draft.hours} onChange={(event) => setField('hours', event.target.value)} required /></label>
           <label>Link do catalogo<input value={draft.catalogSlug} onChange={(event) => setField('catalogSlug', event.target.value)} /></label>
         </div>
+        <div className="form-grid">
+          <label>Chave PIX<input value={draft.pixKey || ''} onChange={(event) => setField('pixKey', event.target.value)} placeholder="CPF, CNPJ, telefone, e-mail ou chave aleatoria" /></label>
+          <label>Nome do recebedor PIX<input value={draft.pixName || ''} onChange={(event) => setField('pixName', event.target.value)} placeholder={draft.name} /></label>
+        </div>
         <label>Texto do banner<input value={draft.bannerText || ''} onChange={(event) => setField('bannerText', event.target.value)} /></label>
         <label>Banner URL<input value={draft.bannerUrl || ''} onChange={(event) => setField('bannerUrl', event.target.value)} placeholder="Cole o link da imagem do banner" /></label>
         <label>Importar banner do PC<input type="file" accept="image/*" onChange={importBanner} /></label>
@@ -1319,6 +1325,7 @@ function ThermalTicket({ store, order }) {
         <strong>{BRL.format(orderTotal(order))}</strong>
       </div>
       <p>Pagamento: {order.payment}</p>
+      {order.paymentStatus && <p>Pagamento: {order.paymentStatus}</p>}
       <p>Status: {order.status}</p>
     </div>
   );
@@ -1422,11 +1429,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       storeSlug,
       coupon: appliedCoupon ? appliedCoupon.code : '',
       discount,
+      paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar',
       status: 'Pendente',
       createdAt: 'Agora',
       items
     });
-    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, total, items });
+    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
     setCart({});
     setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
     setCheckoutStep('products');
@@ -1451,6 +1459,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               <div className="success-actions">
                 <a href={`/pedido/${sentOrder.id}?slug=${encodeURIComponent(storeSlug || store.catalogSlug || '')}`}>Acompanhar status</a>
                 <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
+                {sentOrder.payment === 'PIX' && <a href={buildPaymentProofWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar comprovante</a>}
               </div>
             </div>
           </div>
@@ -1537,6 +1546,21 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             )}
             <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
             <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
+            {customer.payment === 'PIX' && (
+              <div className="pix-manual-box">
+                <span>Pagamento via PIX manual</span>
+                {store.pixKey ? (
+                  <>
+                    <strong>{store.pixKey}</strong>
+                    <small>{store.pixName || store.name}</small>
+                    <button className="ghost-button" type="button" onClick={() => copyPixKey(store.pixKey)}>Copiar chave PIX</button>
+                    <p>Depois de pagar, envie o comprovante pelo WhatsApp do mercado.</p>
+                  </>
+                ) : (
+                  <p>Este estabelecimento ainda nao cadastrou uma chave PIX.</p>
+                )}
+              </div>
+            )}
             <button className="orange-button" type="submit"><ShoppingBag size={18} /> Enviar pedido</button>
           </form>
         )}
@@ -1934,6 +1958,25 @@ function buildStoreOrderWhatsapp(store, order) {
   ].filter(Boolean).join('\n');
 
   return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildPaymentProofWhatsapp(store, order) {
+  const message = [
+    `Ola, fiz o pedido #${order.id} no catalogo ${store.name}.`,
+    `Total: ${BRL.format(order.total || orderTotal(order))}`,
+    'Segue o comprovante do PIX em anexo.'
+  ].join('\n');
+
+  return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+async function copyPixKey(pixKey) {
+  try {
+    await navigator.clipboard.writeText(pixKey);
+    alert('Chave PIX copiada.');
+  } catch {
+    alert(`Chave PIX: ${pixKey}`);
+  }
 }
 
 function onlyDigits(value) {

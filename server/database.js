@@ -17,7 +17,9 @@ const initialStore = {
   segment: 'supermercado',
   bannerText: 'SuperFeliz',
   bannerUrl: '',
-  logoUrl: ''
+  logoUrl: '',
+  pixKey: '',
+  pixName: 'Super Feliz Super Mercado'
 };
 
 const initialProducts = [

@@ -509,7 +509,9 @@ function establishmentToStore(establishment) {
     segment: establishment?.segment || 'supermercado',
     bannerText: establishment?.name || 'Novo estabelecimento',
     bannerUrl: '',
-    logoUrl: ''
+    logoUrl: '',
+    pixKey: '',
+    pixName: establishment?.name || ''
   };
 }
 
