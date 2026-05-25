@@ -274,6 +274,24 @@ function LoginPage({ onLogin, loading, adminSlug }) {
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
+  const [loginStore, setLoginStore] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!adminSlug) return undefined;
+
+    api(`/api/public?slug=${encodeURIComponent(adminSlug)}`)
+      .then((data) => {
+        if (alive) setLoginStore(data.store);
+      })
+      .catch(() => {
+        if (alive) setLoginStore(null);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [adminSlug]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -290,7 +308,7 @@ function LoginPage({ onLogin, loading, adminSlug }) {
   };
 
   return (
-    <main className="login-page">
+    <main className="login-page" style={getLoginBackgroundStyle(loginStore || { segment: adminSlug ? 'estabelecimento' : 'master' })}>
       <form className="login-card" onSubmit={submit}>
         <div className="brand login-brand">
           <strong><span>Pedi</span>Ja</strong>
@@ -2182,6 +2200,26 @@ function getAdminSlug() {
 
 function getBannerStyle(store) {
   return store?.bannerUrl ? { '--banner-image': `url("${store.bannerUrl}")` } : undefined;
+}
+
+function getLoginBackgroundStyle(store) {
+  return { '--login-image': `url("${segmentLoginImage(store?.segment)}")` };
+}
+
+function segmentLoginImage(segment) {
+  const images = {
+    supermercado: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80',
+    bebidas: 'https://images.unsplash.com/photo-1605270012917-bf157c5a9541?auto=format&fit=crop&w=1600&q=80',
+    padaria: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1600&q=80',
+    restaurante: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1600&q=80',
+    pizzaria: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1600&q=80',
+    lanchonete: 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=1600&q=80',
+    farmacia: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=1600&q=80',
+    hortifruti: 'https://images.unsplash.com/photo-1619566636858-adf3ef4640b2?auto=format&fit=crop&w=1600&q=80',
+    master: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1600&q=80'
+  };
+
+  return images[segment] || images.supermercado;
 }
 
 function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/jpeg', background = '' }) {
