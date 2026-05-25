@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Eye,
   Home,
+  MapPin,
   MessageCircle,
   PackagePlus,
   Phone,
@@ -1305,6 +1306,7 @@ function ThermalTicket({ store, order }) {
       <p>Telefone: {order.phone}</p>
       <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
       <p>Endereco: {order.address}</p>
+      {order.location?.mapsUrl && <p>Mapa: {order.location.mapsUrl}</p>}
       {order.notes && <p>Obs: {order.notes}</p>}
       <hr />
       {order.items.map((item) => (
@@ -1374,6 +1376,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [couponCode, setCouponCode] = React.useState('');
   const [appliedCoupon, setAppliedCoupon] = React.useState(null);
   const [couponMessage, setCouponMessage] = React.useState('');
+  const [locationStatus, setLocationStatus] = React.useState('');
+  const [locationLoading, setLocationLoading] = React.useState(false);
+  const [deliveryLocation, setDeliveryLocation] = React.useState(null);
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((item) => item.id === id);
@@ -1411,6 +1416,45 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
     setCouponMessage(`Cupom ${coupon.code} aplicado.`);
   };
 
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('Seu navegador nao permite compartilhar localizacao.');
+      return;
+    }
+
+    setLocationLoading(true);
+    setLocationStatus('Buscando sua localizacao...');
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+      try {
+        const address = await reverseGeocode(latitude, longitude);
+        setCustomer((current) => ({
+          ...current,
+          address: address || current.address
+        }));
+        setDeliveryLocation({ latitude, longitude, mapsUrl, address });
+        setLocationStatus(address
+          ? 'Confira se o endereco preenchido esta correto antes de enviar o pedido.'
+          : 'Nao consegui identificar a rua automaticamente. Confira o mapa e preencha o endereco.');
+      } catch {
+        setDeliveryLocation({ latitude, longitude, mapsUrl, address: '' });
+        setLocationStatus('Peguei sua localizacao, mas nao consegui converter em endereco. Preencha o endereco e confira o mapa.');
+      } finally {
+        setLocationLoading(false);
+      }
+    }, () => {
+      setLocationLoading(false);
+      setLocationStatus('Nao foi possivel acessar sua localizacao. Voce pode preencher o endereco manualmente.');
+    }, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 60000
+    });
+  };
+
   const submitOrder = async (event) => {
     event.preventDefault();
     if (!items.length) return alert('Adicione produtos ao pedido.');
@@ -1426,6 +1470,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       payment: customer.payment,
       deliveryMethod: customer.deliveryMethod,
       notes: customer.notes,
+      location: deliveryLocation,
       storeSlug,
       coupon: appliedCoupon ? appliedCoupon.code : '',
       discount,
@@ -1434,9 +1479,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       createdAt: 'Agora',
       items
     });
-    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
+    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
     setCart({});
     setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
+    setDeliveryLocation(null);
+    setLocationStatus('');
     setCheckoutStep('products');
   };
 
@@ -1542,7 +1589,14 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
             <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
             {customer.deliveryMethod === 'Entrega' && (
-              <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
+              <div className="location-box">
+                <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
+                <button className="ghost-button" type="button" onClick={useCurrentLocation} disabled={locationLoading}>
+                  <MapPin size={17} /> {locationLoading ? 'Buscando...' : 'Usar minha localizacao'}
+                </button>
+                {locationStatus && <p>{locationStatus}</p>}
+                {deliveryLocation?.mapsUrl && <a href={deliveryLocation.mapsUrl} target="_blank" rel="noreferrer">Abrir localizacao no mapa</a>}
+              </div>
             )}
             <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
             <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
@@ -1948,6 +2002,7 @@ function buildStoreOrderWhatsapp(store, order) {
     `Telefone: ${order.phone}`,
     `Tipo: ${order.deliveryMethod}`,
     `Endereco: ${order.address}`,
+    order.location?.mapsUrl ? `Mapa: ${order.location.mapsUrl}` : '',
     `Pagamento: ${order.payment}`,
     order.notes ? `Obs: ${order.notes}` : '',
     '',
@@ -1968,6 +2023,22 @@ function buildPaymentProofWhatsapp(store, order) {
   ].join('\n');
 
   return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+}
+
+async function reverseGeocode(latitude, longitude) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) return '';
+
+  const data = await response.json();
+  const address = data.address || {};
+  const street = [address.road || address.pedestrian || address.residential || address.neighbourhood, address.house_number].filter(Boolean).join(', ');
+  const district = address.suburb || address.neighbourhood || address.city_district || '';
+  const city = address.city || address.town || address.village || address.municipality || '';
+  const state = address.state || '';
+  const parts = [street, district, city, state].filter(Boolean);
+
+  return parts.length ? parts.join(' - ') : (data.display_name || '');
 }
 
 async function copyPixKey(pixKey) {
