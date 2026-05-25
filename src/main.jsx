@@ -1578,6 +1578,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [locationStatus, setLocationStatus] = React.useState('');
   const [locationLoading, setLocationLoading] = React.useState(false);
   const [deliveryLocation, setDeliveryLocation] = React.useState(null);
+  const [orderStatus, setOrderStatus] = React.useState('');
+  const [sendingOrder, setSendingOrder] = React.useState(false);
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((item) => item.id === id);
@@ -1602,6 +1604,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
     return next;
   });
   const updateItemNote = (id, value) => setProductNotes((current) => ({ ...current, [id]: value }));
+  const updateCustomerPhone = (value) => setCustomer((current) => ({ ...current, phone: formatBrazilPhone(value) }));
 
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -1664,41 +1667,50 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 
   const submitOrder = async (event) => {
     event.preventDefault();
-    if (!items.length) return alert('Adicione produtos ao pedido.');
-    if (!closedInfo.open) return alert(closedInfo.message);
-    if (belowMinOrder) return alert(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
-    if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return alert('Informe o endereco para entrega.');
-    if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return alert('Selecione o bairro de entrega.');
+    setOrderStatus('');
+    if (!items.length) return setOrderStatus('Adicione produtos ao pedido.');
+    if (!closedInfo.open) return setOrderStatus(closedInfo.message);
+    if (belowMinOrder) return setOrderStatus(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
+    if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return setOrderStatus('Informe o endereco para entrega.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return setOrderStatus('Selecione o bairro de entrega.');
 
-    const address = customer.deliveryMethod === 'Retirada'
-      ? 'Retirada no balcao'
-      : [customer.address, customer.deliveryNeighborhood].filter(Boolean).join(' - ');
-    const orderId = await onOrder({
-      customer: customer.name,
-      phone: customer.phone,
-      address,
-      payment: customer.payment,
-      deliveryMethod: customer.deliveryMethod,
-      deliveryNeighborhood: customer.deliveryNeighborhood,
-      notes: customer.notes,
-      substitution: customer.substitution,
-      location: deliveryLocation,
-      storeSlug,
-      coupon: appliedCoupon ? appliedCoupon.code : '',
-      discount,
-      deliveryFee,
-      paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar',
-      status: 'Pendente',
-      createdAt: 'Agora',
-      items
-    });
-    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
-    setCart({});
-    setProductNotes({});
-    setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
-    setDeliveryLocation(null);
-    setLocationStatus('');
-    setCheckoutStep('products');
+    setSendingOrder(true);
+    try {
+      const address = customer.deliveryMethod === 'Retirada'
+        ? 'Retirada no balcao'
+        : [customer.address, customer.deliveryNeighborhood].filter(Boolean).join(' - ');
+      const formattedPhone = formatBrazilPhone(customer.phone);
+      const orderId = await onOrder({
+        customer: customer.name,
+        phone: formattedPhone,
+        address,
+        payment: customer.payment,
+        deliveryMethod: customer.deliveryMethod,
+        deliveryNeighborhood: customer.deliveryNeighborhood,
+        notes: customer.notes,
+        substitution: customer.substitution,
+        location: deliveryLocation,
+        storeSlug,
+        coupon: appliedCoupon ? appliedCoupon.code : '',
+        discount,
+        deliveryFee,
+        paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar',
+        status: 'Pendente',
+        createdAt: 'Agora',
+        items
+      });
+      setSentOrder({ id: orderId, customer: customer.name, phone: formattedPhone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
+      setCart({});
+      setProductNotes({});
+      setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
+      setDeliveryLocation(null);
+      setLocationStatus('');
+      setCheckoutStep('products');
+    } catch (error) {
+      setOrderStatus(error.message || 'Nao consegui enviar o pedido. Tente novamente.');
+    } finally {
+      setSendingOrder(false);
+    }
   };
 
   return (
@@ -1840,7 +1852,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               {discount > 0 && <strong>Desconto {BRL.format(discount)}</strong>}
             </div>
             <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
-            <label>Telefone<input value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} required /></label>
+            <label>Telefone<input value={customer.phone} onChange={(event) => updateCustomerPhone(event.target.value)} inputMode="tel" placeholder="(66)99999-9999" required /></label>
             <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
             {customer.deliveryMethod === 'Entrega' && (
               <div className="location-box">
@@ -1888,7 +1900,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 )}
               </div>
             )}
-            <button className="orange-button" type="submit" disabled={!closedInfo.open}><ShoppingBag size={18} /> Enviar pedido</button>
+            {orderStatus && <p className="checkout-warning">{orderStatus}</p>}
+            <button className="orange-button" type="submit" disabled={sendingOrder}><ShoppingBag size={18} /> {sendingOrder ? 'Enviando...' : 'Enviar pedido'}</button>
           </form>
         )}
       </section>
@@ -2283,7 +2296,7 @@ function buildCustomerStatusWhatsapp(order) {
     `Acompanhe aqui: ${trackingUrl}`
   ].join('\n');
 
-  return `https://wa.me/${onlyDigits(order.phone)}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${whatsappDigits(order.phone)}?text=${encodeURIComponent(message)}`;
 }
 
 function buildStoreOrderWhatsapp(store, order) {
@@ -2308,7 +2321,7 @@ function buildStoreOrderWhatsapp(store, order) {
     `Status: ${trackingUrl}`
   ].filter(Boolean).join('\n');
 
-  return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${whatsappDigits(store.phone)}?text=${encodeURIComponent(message)}`;
 }
 
 function buildPaymentProofWhatsapp(store, order) {
@@ -2318,7 +2331,7 @@ function buildPaymentProofWhatsapp(store, order) {
     'Segue o comprovante do PIX em anexo.'
   ].join('\n');
 
-  return `https://wa.me/${onlyDigits(store.phone)}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${whatsappDigits(store.phone)}?text=${encodeURIComponent(message)}`;
 }
 
 function buildCourierLocationWhatsapp(order) {
@@ -2360,6 +2373,20 @@ async function copyPixKey(pixKey) {
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
+}
+
+function formatBrazilPhone(value) {
+  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, '').slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : '';
+  if (digits.length <= 6) return `(${digits.slice(0, 2)})${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)})${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)})${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function whatsappDigits(value) {
+  const digits = onlyDigits(value);
+  if (!digits) return '';
+  return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
 function orderTotal(order) {
