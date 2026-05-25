@@ -266,6 +266,8 @@ a {
 select,
 input,
 textarea {
+  width: 100%;
+  min-width: 0;
   min-height: 36px;
   border: 1px solid #dbe1ea;
   border-radius: 6px;
@@ -930,7 +932,8 @@ input[type="file"] {
 .modal {
   width: min(460px, 100%);
   max-height: calc(100vh - 48px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #fff;
   border-radius: 12px;
   padding: 20px;
@@ -1039,8 +1042,14 @@ input[type="file"] {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.form-status.error-status {
+  color: #b91c1c;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
 }
 
 .check-line {

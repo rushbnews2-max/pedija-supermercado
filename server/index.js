@@ -144,6 +144,13 @@ app.post('/api/establishments', async (req, res) => {
     ...req.body,
     id: crypto.randomUUID()
   });
+  const current = withPlatformDefaults(await readDb());
+  const slugExists = current.establishments.some((item) => item.catalogSlug === establishment.catalogSlug);
+
+  if (slugExists) {
+    res.status(409).json({ message: 'Ja existe um cliente com este link de catalogo. Altere o link e tente novamente.' });
+    return;
+  }
 
   await updateDb((current) => ({
     ...current,
@@ -157,6 +164,14 @@ app.put('/api/establishments/:id', async (req, res) => {
   let saved;
   await updateDb((current) => {
     const establishments = current.establishments || buildDefaultEstablishments(current.store);
+    const nextSlug = slugify(req.body.catalogSlug || req.body.name || 'catalogo');
+    const slugExists = establishments.some((item) => item.id !== req.params.id && item.catalogSlug === nextSlug);
+    if (slugExists) {
+      const error = new Error('Ja existe um cliente com este link de catalogo. Altere o link e tente novamente.');
+      error.status = 409;
+      throw error;
+    }
+
     return {
       ...current,
       establishments: establishments.map((item) => {
@@ -173,6 +188,9 @@ app.put('/api/establishments/:id', async (req, res) => {
   }
 
   res.json(saved);
+}, (error, _req, res, next) => {
+  if (!error.status) return next(error);
+  res.status(error.status).json({ message: error.message });
 });
 
 app.delete('/api/establishments/:id', async (req, res) => {

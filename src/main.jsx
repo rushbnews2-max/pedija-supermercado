@@ -61,7 +61,14 @@ async function api(path, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
+    let message = `Erro ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data?.message || message;
+    } catch {
+      // Mantem a mensagem generica quando a resposta nao vem em JSON.
+    }
+    throw new Error(message);
   }
 
   if (response.status === 204) return null;
@@ -815,17 +822,21 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
 function EstablishmentModal({ establishment, onSave, onClose }) {
   const [draft, setDraft] = React.useState(establishment);
   const [saving, setSaving] = React.useState(false);
+  const [status, setStatus] = React.useState('');
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
 
   const save = async (event) => {
     event.preventDefault();
     setSaving(true);
+    setStatus('');
 
     try {
       await onSave({
         ...draft,
         catalogSlug: slugify(draft.catalogSlug || draft.name)
       });
+    } catch (error) {
+      setStatus(error.message || 'Nao consegui salvar este cliente. Confira os dados e tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -874,6 +885,7 @@ function EstablishmentModal({ establishment, onSave, onClose }) {
             <strong>{window.location.origin}/admin/{slugify(draft.catalogSlug)}</strong>
           </div>
         )}
+        {status && <p className="form-status error-status">{status}</p>}
         <button className="orange-button" type="submit" disabled={saving}><Check size={18} /> {saving ? 'Salvando...' : 'Salvar cliente'}</button>
       </form>
     </div>
