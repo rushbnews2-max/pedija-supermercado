@@ -166,7 +166,10 @@ const initialStore = {
   bannerUrl: '',
   logoUrl: '',
   pixKey: '',
-  pixName: 'Super Feliz Super Mercado'
+  pixName: 'Super Feliz Super Mercado',
+  deliveryFee: 0,
+  minOrder: 0,
+  deliveryAreas: ''
 };
 
 function LogoMark({ store }) {
@@ -958,6 +961,11 @@ function StoreModal({ store, onSave, onClose }) {
           <label>Chave PIX<input value={draft.pixKey || ''} onChange={(event) => setField('pixKey', event.target.value)} placeholder="CPF, CNPJ, telefone, e-mail ou chave aleatoria" /></label>
           <label>Nome do recebedor PIX<input value={draft.pixName || ''} onChange={(event) => setField('pixName', event.target.value)} placeholder={draft.name} /></label>
         </div>
+        <div className="form-grid">
+          <label>Taxa de entrega<input type="number" step="0.01" value={draft.deliveryFee || 0} onChange={(event) => setField('deliveryFee', event.target.value)} /></label>
+          <label>Pedido minimo<input type="number" step="0.01" value={draft.minOrder || 0} onChange={(event) => setField('minOrder', event.target.value)} /></label>
+        </div>
+        <label>Bairros/areas atendidas<textarea value={draft.deliveryAreas || ''} onChange={(event) => setField('deliveryAreas', event.target.value)} placeholder="Ex: Centro, Jardim das Flores, Vila Nova. Deixe em branco para atender todos." /></label>
         <label>Texto do banner<input value={draft.bannerText || ''} onChange={(event) => setField('bannerText', event.target.value)} /></label>
         <label>Banner URL<input value={draft.bannerUrl || ''} onChange={(event) => setField('bannerUrl', event.target.value)} placeholder="Cole o link da imagem do banner" /></label>
         <label>Importar banner do PC<input type="file" accept="image/*" onChange={importBanner} /></label>
@@ -1301,6 +1309,7 @@ function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
 
 function ThermalTicket({ store, order }) {
   const discount = Number(order.discount || 0);
+  const deliveryFee = Number(order.deliveryFee || 0);
   return (
     <div className="thermal-ticket">
       <h3>{store.name}</h3>
@@ -1326,6 +1335,12 @@ function ThermalTicket({ store, order }) {
         <div className="ticket-line">
           <span>Desconto {order.coupon ? `(${order.coupon})` : ''}</span>
           <strong>-{BRL.format(discount)}</strong>
+        </div>
+      )}
+      {deliveryFee > 0 && (
+        <div className="ticket-line">
+          <span>Entrega</span>
+          <strong>{BRL.format(deliveryFee)}</strong>
         </div>
       )}
       <div className="ticket-line total">
@@ -1392,7 +1407,10 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   }).filter(Boolean);
   const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
   const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
-  const total = Math.max(0, subtotal - discount);
+  const deliveryFee = customer.deliveryMethod === 'Entrega' ? Number(store.deliveryFee || 0) : 0;
+  const minOrder = Number(store.minOrder || 0);
+  const total = Math.max(0, subtotal - discount + deliveryFee);
+  const belowMinOrder = minOrder > 0 && subtotal < minOrder;
   const catalogCategories = groupProductsByCategory(activeProducts);
 
   const add = (id) => setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
@@ -1464,6 +1482,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const submitOrder = async (event) => {
     event.preventDefault();
     if (!items.length) return alert('Adicione produtos ao pedido.');
+    if (belowMinOrder) return alert(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
     if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return alert('Informe o endereco para entrega.');
 
     const address = customer.deliveryMethod === 'Retirada'
@@ -1480,12 +1499,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       storeSlug,
       coupon: appliedCoupon ? appliedCoupon.code : '',
       discount,
+      deliveryFee,
       paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar',
       status: 'Pendente',
       createdAt: 'Agora',
       items
     });
-    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
+    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
     setCart({});
     setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
     setDeliveryLocation(null);
@@ -1584,7 +1604,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 <strong>{BRL.format(item.qty * item.price)}</strong>
               </div>
             )) : <p className="empty">Escolha produtos no catalogo.</p>}
-            <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
+            <div className="checkout-summary">
+              <div><span>Subtotal</span><strong>{BRL.format(subtotal)}</strong></div>
+              {discount > 0 && <div><span>Desconto</span><strong>-{BRL.format(discount)}</strong></div>}
+              {customer.deliveryMethod === 'Entrega' && <div><span>Entrega</span><strong>{deliveryFee > 0 ? BRL.format(deliveryFee) : 'Gratis'}</strong></div>}
+              <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
+            </div>
+            {belowMinOrder && <p className="checkout-warning">Pedido minimo de {BRL.format(minOrder)}. Adicione mais itens para finalizar.</p>}
             <div className="coupon-box">
               <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
               <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
@@ -1596,6 +1622,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
             {customer.deliveryMethod === 'Entrega' && (
               <div className="location-box">
+                {store.deliveryAreas && (
+                  <div className="delivery-areas">
+                    <span>Areas atendidas</span>
+                    <strong>{store.deliveryAreas}</strong>
+                  </div>
+                )}
                 <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
                 <button className="ghost-button" type="button" onClick={useCurrentLocation} disabled={locationLoading}>
                   <MapPin size={17} /> {locationLoading ? 'Buscando...' : 'Usar minha localizacao'}
@@ -2009,6 +2041,7 @@ function buildStoreOrderWhatsapp(store, order) {
     `Tipo: ${order.deliveryMethod}`,
     `Endereco: ${order.address}`,
     order.location?.mapsUrl ? `Mapa: ${order.location.mapsUrl}` : '',
+    Number(order.deliveryFee || 0) > 0 ? `Taxa de entrega: ${BRL.format(order.deliveryFee)}` : '',
     `Pagamento: ${order.payment}`,
     order.notes ? `Obs: ${order.notes}` : '',
     '',
@@ -2074,7 +2107,7 @@ function onlyDigits(value) {
 
 function orderTotal(order) {
   const subtotal = order.items.reduce((sum, item) => sum + item.qty * item.price, 0);
-  return Math.max(0, subtotal - Number(order.discount || 0));
+  return Math.max(0, subtotal - Number(order.discount || 0) + Number(order.deliveryFee || 0));
 }
 
 function couponDiscount(coupon, subtotal) {

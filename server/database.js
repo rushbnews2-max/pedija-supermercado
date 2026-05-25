@@ -19,7 +19,10 @@ const initialStore = {
   bannerUrl: '',
   logoUrl: '',
   pixKey: '',
-  pixName: 'Super Feliz Super Mercado'
+  pixName: 'Super Feliz Super Mercado',
+  deliveryFee: 0,
+  minOrder: 0,
+  deliveryAreas: ''
 };
 
 const initialProducts = [

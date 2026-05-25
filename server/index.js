@@ -511,7 +511,10 @@ function establishmentToStore(establishment) {
     bannerUrl: '',
     logoUrl: '',
     pixKey: '',
-    pixName: establishment?.name || ''
+    pixName: establishment?.name || '',
+    deliveryFee: 0,
+    minOrder: 0,
+    deliveryAreas: ''
   };
 }
 

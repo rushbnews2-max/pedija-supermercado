@@ -1347,6 +1347,36 @@ input[type="file"] {
   border-bottom: 1px solid #eef1f5;
 }
 
+.checkout-summary {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid #eef1f5;
+  border-bottom: 1px solid #eef1f5;
+  margin: 8px 0 10px;
+}
+
+.checkout-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checkout-summary .cart-total {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.checkout-warning {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-weight: 900;
+}
+
 .tracking-page {
   min-height: 100vh;
   display: grid;
@@ -1568,6 +1598,26 @@ input[type="file"] {
   color: var(--orange);
   font-weight: 900;
   text-decoration: none;
+}
+
+.delivery-areas {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.delivery-areas span {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.delivery-areas strong {
+  color: #1e3a8a;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 820px) {
