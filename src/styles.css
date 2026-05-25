@@ -294,6 +294,35 @@ input[type="file"] {
   box-shadow: 0 2px 8px rgba(15, 23, 42, .03);
 }
 
+.print-installer-panel {
+  max-width: 680px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.print-installer-panel > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.print-installer-panel h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.print-installer-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
 .store-hero {
   height: 128px;
   display: grid;
@@ -1777,7 +1806,8 @@ input[type="file"] {
   }
 
   .page-header,
-  .catalog-hero {
+  .catalog-hero,
+  .print-installer-panel {
     flex-direction: column;
     align-items: flex-start;
   }

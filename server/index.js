@@ -90,6 +90,7 @@ app.use('/api/establishments', requireMaster);
 app.use('/api/store', requireAdmin);
 app.use('/api/products', requireAdmin);
 app.use('/api/coupons', requireAdmin);
+app.use('/api/downloads', requireAdmin);
 app.use('/api/orders', (req, res, next) => {
   if (req.method === 'POST') return next();
   return requireAdmin(req, res, next);
@@ -330,6 +331,20 @@ app.delete('/api/coupons/:id', async (req, res) => {
   await updateDb((current) => updateScopedCoupons(current, session, (coupons) => coupons.filter((coupon) => coupon.id !== req.params.id)));
 
   res.status(204).end();
+});
+
+app.get('/api/downloads/print-installer', async (req, res) => {
+  const db = await readDb();
+  const session = getSession(req);
+  const scoped = getStoreBySession(withPlatformDefaults(db), session);
+  const slug = slugify(scoped.store.catalogSlug || 'catalogo');
+  const baseUrl = publicBaseUrl(req);
+  const fileName = `PediJa-Impressao-${slug}.bat`;
+  const installer = buildPrintInstallerBat({ slug, baseUrl });
+
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.send(installer);
 });
 
 app.get('/api/orders', async (req, res) => {
@@ -666,6 +681,67 @@ function segmentLabel(segment) {
   };
 
   return labels[segment] || 'Estabelecimento';
+}
+
+function publicBaseUrl(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const proto = forwardedProto || req.protocol || 'https';
+  const host = req.get('host') || 'pedija.up.railway.app';
+  return `${proto}://${host}`.replace(/\/+$/, '');
+}
+
+function buildPrintInstallerBat({ slug, baseUrl }) {
+  return `@echo off\r
+setlocal\r
+set "SLUG=${slug}"\r
+set "BASE_URL=${baseUrl}"\r
+set "URL=%BASE_URL%/admin/%SLUG%"\r
+set "PROFILE=%LOCALAPPDATA%\\PediJaImpressao\\%SLUG%"\r
+set "DESKTOP=%USERPROFILE%\\Desktop"\r
+set "LAUNCHER=%LOCALAPPDATA%\\PediJaImpressao\\abrir-%SLUG%.bat"\r
+set "SHORTCUT=%DESKTOP%\\PediJa Impressao %SLUG%.lnk"\r
+\r
+mkdir "%LOCALAPPDATA%\\PediJaImpressao" >nul 2>nul\r
+\r
+(\r
+echo @echo off\r
+echo set "URL=%URL%"\r
+echo set "PROFILE=%PROFILE%"\r
+echo set "CHROME=%%ProgramFiles%%\\Google\\Chrome\\Application\\chrome.exe"\r
+echo set "CHROME_X86=%%ProgramFiles(x86)%%\\Google\\Chrome\\Application\\chrome.exe"\r
+echo set "EDGE=%%ProgramFiles(x86)%%\\Microsoft\\Edge\\Application\\msedge.exe"\r
+echo set "EDGE_64=%%ProgramFiles%%\\Microsoft\\Edge\\Application\\msedge.exe"\r
+echo if exist "%%CHROME%%" ^(\r
+echo   start "" "%%CHROME%%" --kiosk-printing --user-data-dir="%%PROFILE%%" --app="%%URL%%"\r
+echo   exit /b 0\r
+echo ^)\r
+echo if exist "%%CHROME_X86%%" ^(\r
+echo   start "" "%%CHROME_X86%%" --kiosk-printing --user-data-dir="%%PROFILE%%" --app="%%URL%%"\r
+echo   exit /b 0\r
+echo ^)\r
+echo if exist "%%EDGE%%" ^(\r
+echo   start "" "%%EDGE%%" --kiosk-printing --user-data-dir="%%PROFILE%%" --app="%%URL%%"\r
+echo   exit /b 0\r
+echo ^)\r
+echo if exist "%%EDGE_64%%" ^(\r
+echo   start "" "%%EDGE_64%%" --kiosk-printing --user-data-dir="%%PROFILE%%" --app="%%URL%%"\r
+echo   exit /b 0\r
+echo ^)\r
+echo echo Nao encontrei Google Chrome nem Microsoft Edge nos caminhos padrao.\r
+echo pause\r
+) > "%LAUNCHER%"\r
+\r
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');$s.TargetPath='%LAUNCHER%';$s.WorkingDirectory='%LOCALAPPDATA%\\PediJaImpressao';$s.WindowStyle=7;$s.Description='PediJa Impressao Direta';$s.Save()"\r
+\r
+echo.\r
+echo Instalador concluido.\r
+echo Atalho criado na Area de Trabalho: PediJa Impressao %SLUG%\r
+echo.\r
+echo Antes de usar, deixe a impressora termica como impressora padrao do Windows.\r
+echo Abra o atalho, faca login uma vez e marque "Imprimir novos pedidos automaticamente".\r
+echo.\r
+pause\r
+`;
 }
 
 function slugify(value) {

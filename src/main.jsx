@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronUp,
   Copy,
+  Download,
   Edit3,
   ExternalLink,
   Eye,
@@ -868,6 +869,29 @@ function Stores({ store, setStore, setPage }) {
     await navigator.clipboard.writeText(catalogUrl);
     alert('Link do catalogo copiado.');
   };
+  const downloadPrintInstaller = async () => {
+    try {
+      const token = localStorage.getItem('pedija-admin-token');
+      const response = await fetch(`${API_BASE}/api/downloads/print-installer`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('download');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const disposition = response.headers.get('content-disposition') || '';
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `PediJa-Impressao-${store.catalogSlug || 'loja'}.bat`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Nao consegui baixar o instalador agora. Tente novamente.');
+    }
+  };
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Confira nosso catalogo: ${catalogUrl}`)}`;
 
   return (
@@ -895,6 +919,16 @@ function Stores({ store, setStore, setPage }) {
           </div>
           <span className="status-pill">{store.status}</span>
         </div>
+      </section>
+      <section className="print-installer-panel">
+        <div>
+          <Printer size={22} />
+          <div>
+            <h3>Impressao direta no PDV</h3>
+            <p>Baixe o instalador deste estabelecimento para criar o atalho de impressao automatica no computador do caixa.</p>
+          </div>
+        </div>
+        <button className="ghost-button" type="button" onClick={downloadPrintInstaller}><Download size={18} /> Baixar instalador</button>
       </section>
       {editing && (
         <StoreModal
