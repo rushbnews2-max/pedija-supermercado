@@ -5,7 +5,10 @@ import {
   BarChart3,
   Box,
   Check,
+  Clock,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Copy,
   Edit3,
   ExternalLink,
@@ -22,9 +25,11 @@ import {
   Settings,
   Shield,
   ShoppingBag,
+  Star,
   Store,
   Tag,
   Trash2,
+  Truck,
   Users,
   X
 } from 'lucide-react';
@@ -72,6 +77,8 @@ const initialProducts = [
     promo: true,
     active: true,
     stock: 38,
+    featured: true,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -83,6 +90,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 94,
+    featured: false,
+    sortOrder: 20,
     image: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -94,6 +103,8 @@ const initialProducts = [
     promo: true,
     active: true,
     stock: 22,
+    featured: true,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -105,6 +116,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 58,
+    featured: false,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -116,6 +129,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 41,
+    featured: false,
+    sortOrder: 20,
     image: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?auto=format&fit=crop&w=220&q=80'
   }
 ];
@@ -169,7 +184,9 @@ const initialStore = {
   pixName: 'Super Feliz Super Mercado',
   deliveryFee: 0,
   minOrder: 0,
-  deliveryAreas: ''
+  deliveryAreas: '',
+  deliveryZones: [],
+  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios']
 };
 
 function LogoMark({ store }) {
@@ -222,6 +239,7 @@ function Sidebar({ page, setPage, onLogout, role }) {
     ['estabelecimentos', 'Estabelecimentos', Store],
     ['produtos', 'Produtos', Box],
     ['pedidos', 'Pedidos', ShoppingBag],
+    ['entregas', 'Entregas', Truck],
     ['relatorios', 'Relatorios', BarChart3],
     ['cupons', 'Cupons', Tag],
     ['usuarios', 'Usuarios', Users]
@@ -596,8 +614,9 @@ function App() {
           <>
             {page === 'painel' && <Dashboard store={storeData} products={products} orders={orders} setPage={setPage} />}
             {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
-            {page === 'produtos' && <Products store={storeData} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
+            {page === 'produtos' && <Products store={storeData} setStore={saveStore} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
+            {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
             {page === 'usuarios' && <UsersPage />}
@@ -966,6 +985,7 @@ function StoreModal({ store, onSave, onClose }) {
           <label>Pedido minimo<input type="number" step="0.01" value={draft.minOrder || 0} onChange={(event) => setField('minOrder', event.target.value)} /></label>
         </div>
         <label>Bairros/areas atendidas<textarea value={draft.deliveryAreas || ''} onChange={(event) => setField('deliveryAreas', event.target.value)} placeholder="Ex: Centro, Jardim das Flores, Vila Nova. Deixe em branco para atender todos." /></label>
+        <label>Bairros com taxa<textarea value={deliveryZonesToText(draft.deliveryZones)} onChange={(event) => setField('deliveryZones', parseDeliveryZones(event.target.value))} placeholder="Um por linha. Ex: Centro=5, Jardim das Flores=8" /></label>
         <label>Texto do banner<input value={draft.bannerText || ''} onChange={(event) => setField('bannerText', event.target.value)} /></label>
         <label>Banner URL<input value={draft.bannerUrl || ''} onChange={(event) => setField('bannerUrl', event.target.value)} placeholder="Cole o link da imagem do banner" /></label>
         <label>Importar banner do PC<input type="file" accept="image/*" onChange={importBanner} /></label>
@@ -985,16 +1005,43 @@ function StoreModal({ store, onSave, onClose }) {
   );
 }
 
-function Products({ store, products, createProduct, updateProduct, deleteProduct, importProducts }) {
+function Products({ store, setStore, products, createProduct, updateProduct, deleteProduct, importProducts }) {
   const [tab, setTab] = React.useState('Produtos');
   const [editing, setEditing] = React.useState(null);
   const [importing, setImporting] = React.useState(false);
-  const categories = [...new Set(products.map((product) => product.category || 'Sem categoria'))];
+  const categories = sortedCategories(products, store.categoryOrder);
+  const productsByCategory = categories.map((category) => [
+    category,
+    sortProductsForCatalog(products.filter((product) => (product.category || 'Sem categoria') === category))
+  ]);
 
   const saveProduct = (product) => {
+    const categoryProducts = products.filter((item) => (item.category || 'Sem categoria') === (product.category || 'Sem categoria'));
     if (product.id) updateProduct(product);
-    else createProduct({ ...product, active: true });
+    else createProduct({ ...product, active: true, featured: Boolean(product.featured), sortOrder: nextSortOrder(categoryProducts) });
     setEditing(null);
+  };
+
+  const moveProduct = async (product, direction) => {
+    const categoryProducts = sortProductsForCatalog(products.filter((item) => (item.category || 'Sem categoria') === (product.category || 'Sem categoria')));
+    const index = categoryProducts.findIndex((item) => item.id === product.id);
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (index < 0 || swapIndex < 0 || swapIndex >= categoryProducts.length) return;
+
+    const first = categoryProducts[index];
+    const second = categoryProducts[swapIndex];
+    await updateProduct({ ...first, sortOrder: normalizedSortOrder(second, swapIndex) });
+    await updateProduct({ ...second, sortOrder: normalizedSortOrder(first, index) });
+  };
+
+  const moveCategory = async (category, direction) => {
+    const index = categories.indexOf(category);
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (index < 0 || swapIndex < 0 || swapIndex >= categories.length) return;
+
+    const nextOrder = [...categories];
+    [nextOrder[index], nextOrder[swapIndex]] = [nextOrder[swapIndex], nextOrder[index]];
+    await setStore({ ...store, categoryOrder: nextOrder });
   };
 
   return (
@@ -1012,7 +1059,7 @@ function Products({ store, products, createProduct, updateProduct, deleteProduct
       {tab === 'Produtos' ? (
         <>
           <div className="product-toolbar">
-            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, stock: 0, active: true })}>
+            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true })}>
               <Plus size={18} /> Novo Produto
             </button>
             <button className="ghost-button new-product" onClick={() => setImporting(true)}>
@@ -1020,15 +1067,19 @@ function Products({ store, products, createProduct, updateProduct, deleteProduct
             </button>
           </div>
           <div className="product-groups">
-            {categories.map((category) => (
+            {productsByCategory.map(([category, categoryProducts]) => (
               <section key={category}>
                 <h3>{category}</h3>
-                {products.filter((product) => product.category === category).map((product) => (
+                {categoryProducts.map((product, index) => (
                   <ProductRow
                     key={product.id}
                     product={product}
+                    isFirst={index === 0}
+                    isLast={index === categoryProducts.length - 1}
                     onEdit={() => setEditing(product)}
                     onToggle={() => updateProduct({ ...product, active: !product.active })}
+                    onMoveUp={() => moveProduct(product, 'up')}
+                    onMoveDown={() => moveProduct(product, 'down')}
                     onDelete={() => {
                       if (confirm(`Excluir o produto "${product.name}"?`)) {
                         deleteProduct(product.id);
@@ -1042,11 +1093,15 @@ function Products({ store, products, createProduct, updateProduct, deleteProduct
         </>
       ) : (
         <section className="category-list">
-          {categories.map((category) => (
+          {categories.map((category, index) => (
             <article key={category}>
               <Box size={18} />
               <strong>{category}</strong>
               <span>{products.filter((product) => product.category === category).length} produtos</span>
+              <div className="category-actions">
+                <button type="button" disabled={index === 0} onClick={() => moveCategory(category, 'up')}>Subir</button>
+                <button type="button" disabled={index === categories.length - 1} onClick={() => moveCategory(category, 'down')}>Descer</button>
+              </div>
             </article>
           ))}
         </section>
@@ -1057,7 +1112,7 @@ function Products({ store, products, createProduct, updateProduct, deleteProduct
   );
 }
 
-function ProductRow({ product, onEdit, onToggle, onDelete }) {
+function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMoveDown, onDelete }) {
   return (
     <article className="product-row">
       <ProductThumb product={product} />
@@ -1068,8 +1123,11 @@ function ProductRow({ product, onEdit, onToggle, onDelete }) {
       </div>
       <span className="green-pill">{product.active ? 'Ativo' : 'Inativo'}</span>
       {product.promo && <span className="promo-pill">🔥 Promocao</span>}
+      {product.featured && <span className="featured-pill"><Star size={13} /> Destaque</span>}
       <span className="stock">Estoque {product.stock}</span>
       <div className="row-actions">
+        <button aria-label="Subir produto" disabled={isFirst} onClick={onMoveUp}><ChevronUp size={17} /></button>
+        <button aria-label="Descer produto" disabled={isLast} onClick={onMoveDown}><ChevronDown size={17} /></button>
         <button aria-label="Status" onClick={onToggle}><Settings size={18} /></button>
         <button aria-label="Editar" onClick={onEdit}><Edit3 size={18} /></button>
         <button aria-label="Excluir" className="danger" onClick={onDelete}><Trash2 size={18} /></button>
@@ -1111,6 +1169,8 @@ function ProductModal({ product, onSave, onClose }) {
         <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
         <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
+        <label className="check-line"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => setField('featured', event.target.checked)} /> Mostrar em destaque no catalogo</label>
+        <label className="check-line"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setField('active', event.target.checked)} /> Produto disponivel para venda</label>
         <button className="orange-button" type="submit"><Check size={18} /> Salvar</button>
       </form>
     </div>
@@ -1267,6 +1327,36 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
   );
 }
 
+function Deliveries({ orders, updateOrderStatus, setSelectedOrder }) {
+  const deliveryOrders = orders.filter((order) => order.deliveryMethod !== 'Retirada' && ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status));
+
+  return (
+    <>
+      <PageHeader title="Entregas" subtitle="Roteiro rapido para o entregador" />
+      <section className="delivery-board">
+        {deliveryOrders.map((order) => (
+          <article className="delivery-card" key={order.id}>
+            <div>
+              <strong>Pedido #{order.id}</strong>
+              <span>{order.status}</span>
+            </div>
+            <h3>{order.customer}</h3>
+            <p>{order.address}</p>
+            <small>{order.phone}</small>
+            <div className="delivery-actions">
+              <button type="button" onClick={() => setSelectedOrder(order)}>Ver pedido</button>
+              {order.location?.mapsUrl && <a href={order.location.mapsUrl} target="_blank" rel="noreferrer"><MapPin size={15} /> GPS</a>}
+              <button type="button" onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}>Saiu</button>
+              <button type="button" onClick={() => updateOrderStatus(order.id, 'Entregue')}>Entregue</button>
+            </div>
+          </article>
+        ))}
+        {!deliveryOrders.length && <p className="empty">Nenhuma entrega pendente agora.</p>}
+      </section>
+    </>
+  );
+}
+
 function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
   const printOrder = () => {
     document.body.dataset.printing = 'order';
@@ -1322,12 +1412,17 @@ function ThermalTicket({ store, order }) {
       <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
       <p>Endereco: {order.address}</p>
       {order.location?.mapsUrl && <p>Mapa: {order.location.mapsUrl}</p>}
+      {order.deliveryNeighborhood && <p>Bairro: {order.deliveryNeighborhood}</p>}
+      {order.substitution && <p>Falta produto: {order.substitution}</p>}
       {order.notes && <p>Obs: {order.notes}</p>}
       <hr />
       {order.items.map((item) => (
-        <div className="ticket-line" key={`${item.productId}-${item.name}`}>
-          <span>{item.qty}x {item.name}</span>
-          <strong>{BRL.format(item.qty * item.price)}</strong>
+        <div className="ticket-item" key={`${item.productId}-${item.name}`}>
+          <div className="ticket-line">
+            <span>{item.qty}x {item.name}</span>
+            <strong>{BRL.format(item.qty * item.price)}</strong>
+          </div>
+          {item.notes && <small>Obs item: {item.notes}</small>}
         </div>
       ))}
       <hr />
@@ -1391,7 +1486,8 @@ function PrintOrderPage({ store, order, loading }) {
 function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
-  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
+  const [productNotes, setProductNotes] = React.useState({});
+  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
   const [checkoutStep, setCheckoutStep] = React.useState('products');
   const [couponCode, setCouponCode] = React.useState('');
@@ -1403,15 +1499,19 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([id, qty]) => {
     const product = products.find((item) => item.id === id);
-    return product ? { productId: id, name: product.name, price: product.price, qty } : null;
+    return product ? { productId: id, name: product.name, price: product.price, qty, notes: productNotes[id] || '' } : null;
   }).filter(Boolean);
   const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
   const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
-  const deliveryFee = customer.deliveryMethod === 'Entrega' ? Number(store.deliveryFee || 0) : 0;
+  const deliveryZones = Array.isArray(store.deliveryZones) ? store.deliveryZones : [];
+  const selectedZone = deliveryZones.find((zone) => zone.name === customer.deliveryNeighborhood);
+  const deliveryFee = customer.deliveryMethod === 'Entrega' ? Number(selectedZone?.fee ?? store.deliveryFee ?? 0) : 0;
   const minOrder = Number(store.minOrder || 0);
   const total = Math.max(0, subtotal - discount + deliveryFee);
   const belowMinOrder = minOrder > 0 && subtotal < minOrder;
-  const catalogCategories = groupProductsByCategory(activeProducts);
+  const closedInfo = storeOpenInfo(store);
+  const catalogCategories = groupProductsByCategory(activeProducts, store.categoryOrder);
+  const featuredProducts = sortProductsForCatalog(activeProducts.filter((product) => product.featured || product.promo)).slice(0, 12);
 
   const add = (id) => setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
   const remove = (id) => setCart((current) => {
@@ -1419,6 +1519,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
     if (next[id] <= 0) delete next[id];
     return next;
   });
+  const updateItemNote = (id, value) => setProductNotes((current) => ({ ...current, [id]: value }));
 
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -1482,19 +1583,23 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const submitOrder = async (event) => {
     event.preventDefault();
     if (!items.length) return alert('Adicione produtos ao pedido.');
+    if (!closedInfo.open) return alert(closedInfo.message);
     if (belowMinOrder) return alert(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
     if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return alert('Informe o endereco para entrega.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return alert('Selecione o bairro de entrega.');
 
     const address = customer.deliveryMethod === 'Retirada'
       ? 'Retirada no balcao'
-      : customer.address;
+      : [customer.address, customer.deliveryNeighborhood].filter(Boolean).join(' - ');
     const orderId = await onOrder({
       customer: customer.name,
       phone: customer.phone,
       address,
       payment: customer.payment,
       deliveryMethod: customer.deliveryMethod,
+      deliveryNeighborhood: customer.deliveryNeighborhood,
       notes: customer.notes,
+      substitution: customer.substitution,
       location: deliveryLocation,
       storeSlug,
       coupon: appliedCoupon ? appliedCoupon.code : '',
@@ -1505,9 +1610,10 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       createdAt: 'Agora',
       items
     });
-    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, notes: customer.notes, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
+    setSentOrder({ id: orderId, customer: customer.name, phone: customer.phone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
     setCart({});
-    setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', notes: '' });
+    setProductNotes({});
+    setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
     setDeliveryLocation(null);
     setLocationStatus('');
     setCheckoutStep('products');
@@ -1537,6 +1643,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             </div>
           </div>
         )}
+        {!closedInfo.open && (
+          <div className="closed-message">
+            <Clock size={20} />
+            <strong>{closedInfo.message}</strong>
+          </div>
+        )}
 
         {checkoutStep === 'products' ? (
           <>
@@ -1563,6 +1675,31 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 <input placeholder="Buscar produto" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
               <div className="catalog-sections">
+                {featuredProducts.length > 0 && (
+                  <section className="catalog-category featured-category">
+                    <div className="catalog-category-head">
+                      <h2>Destaques</h2>
+                      <span>{featuredProducts.length} itens</span>
+                    </div>
+                    <div className="catalog-grid">
+                      {featuredProducts.map((product) => (
+                        <article className="catalog-item" key={`featured-${product.id}`}>
+                          <ProductThumb product={product} />
+                          <div>
+                            <span>{product.category}</span>
+                            <h3>{product.name}</h3>
+                            <strong>{BRL.format(product.price)}</strong>
+                          </div>
+                          <div className="stepper">
+                            <button onClick={() => remove(product.id)}>-</button>
+                            <b>{cart[product.id] || 0}</b>
+                            <button onClick={() => add(product.id)}>+</button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 {catalogCategories.map(([category, categoryProducts]) => (
                   <section className="catalog-category" key={category}>
                     <div className="catalog-category-head">
@@ -1599,8 +1736,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               <h2>Finalizar pedido</h2>
             </div>
             {items.length ? items.map((item) => (
-              <div className="cart-line" key={item.productId}>
-                <span>{item.qty}x {item.name}</span>
+              <div className="cart-line item-note-line" key={item.productId}>
+                <div>
+                  <span>{item.qty}x {item.name}</span>
+                  <input value={productNotes[item.productId] || ''} onChange={(event) => updateItemNote(item.productId, event.target.value)} placeholder="Observacao deste item" />
+                </div>
                 <strong>{BRL.format(item.qty * item.price)}</strong>
               </div>
             )) : <p className="empty">Escolha produtos no catalogo.</p>}
@@ -1610,7 +1750,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               {customer.deliveryMethod === 'Entrega' && <div><span>Entrega</span><strong>{deliveryFee > 0 ? BRL.format(deliveryFee) : 'Gratis'}</strong></div>}
               <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
             </div>
-            {belowMinOrder && <p className="checkout-warning">Pedido minimo de {BRL.format(minOrder)}. Adicione mais itens para finalizar.</p>}
+            {belowMinOrder && <p className="checkout-warning">Pedido minimo de {BRL.format(minOrder)}. Faltam {BRL.format(Math.max(0, minOrder - subtotal))} para finalizar.</p>}
             <div className="coupon-box">
               <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
               <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
@@ -1622,6 +1762,14 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
             {customer.deliveryMethod === 'Entrega' && (
               <div className="location-box">
+                {deliveryZones.length > 0 && (
+                  <label>Bairro<select value={customer.deliveryNeighborhood} onChange={(event) => setCustomer({ ...customer, deliveryNeighborhood: event.target.value })} required>
+                    <option value="">Selecione o bairro</option>
+                    {deliveryZones.map((zone) => (
+                      <option value={zone.name} key={zone.name}>{zone.name} - {Number(zone.fee || 0) > 0 ? BRL.format(zone.fee) : 'Gratis'}</option>
+                    ))}
+                  </select></label>
+                )}
                 {store.deliveryAreas && (
                   <div className="delivery-areas">
                     <span>Areas atendidas</span>
@@ -1636,6 +1784,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 {deliveryLocation?.mapsUrl && <a href={deliveryLocation.mapsUrl} target="_blank" rel="noreferrer">Abrir localizacao no mapa</a>}
               </div>
             )}
+            <label>Se faltar algum produto<select value={customer.substitution} onChange={(event) => setCustomer({ ...customer, substitution: event.target.value })}>
+              <option>Me chamar no WhatsApp</option>
+              <option>Pode substituir por similar</option>
+              <option>Remover do pedido</option>
+            </select></label>
             <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
             <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
             {customer.payment === 'PIX' && (
@@ -1653,7 +1806,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 )}
               </div>
             )}
-            <button className="orange-button" type="submit"><ShoppingBag size={18} /> Enviar pedido</button>
+            <button className="orange-button" type="submit" disabled={!closedInfo.open}><ShoppingBag size={18} /> Enviar pedido</button>
           </form>
         )}
       </section>
@@ -2021,7 +2174,7 @@ function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/j
 }
 
 function buildCustomerStatusWhatsapp(order) {
-  const trackingUrl = `${window.location.origin}/pedido/${order.id}`;
+  const trackingUrl = `${window.location.origin}/pedido/${order.id}${order.storeSlug ? `?slug=${encodeURIComponent(order.storeSlug)}` : ''}`;
   const message = [
     `Ola ${order.customer}, seu pedido #${order.id} esta com status: ${order.status}.`,
     `Total: ${BRL.format(orderTotal(order))}`,
@@ -2032,17 +2185,19 @@ function buildCustomerStatusWhatsapp(order) {
 }
 
 function buildStoreOrderWhatsapp(store, order) {
-  const trackingUrl = `${window.location.origin}/pedido/${order.id}`;
-  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}`).join('\n');
+  const trackingUrl = `${window.location.origin}/pedido/${order.id}${store.catalogSlug ? `?slug=${encodeURIComponent(store.catalogSlug)}` : ''}`;
+  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}${item.notes ? `\n  Obs: ${item.notes}` : ''}`).join('\n');
   const message = [
     `Novo pedido #${order.id}`,
     `Cliente: ${order.customer}`,
     `Telefone: ${order.phone}`,
     `Tipo: ${order.deliveryMethod}`,
+    order.deliveryNeighborhood ? `Bairro: ${order.deliveryNeighborhood}` : '',
     `Endereco: ${order.address}`,
     order.location?.mapsUrl ? `Mapa: ${order.location.mapsUrl}` : '',
     Number(order.deliveryFee || 0) > 0 ? `Taxa de entrega: ${BRL.format(order.deliveryFee)}` : '',
     `Pagamento: ${order.payment}`,
+    order.substitution ? `Se faltar produto: ${order.substitution}` : '',
     order.notes ? `Obs: ${order.notes}` : '',
     '',
     items,
@@ -2116,7 +2271,7 @@ function couponDiscount(coupon, subtotal) {
   return Math.min(subtotal, subtotal * (Number(coupon.value || 0) / 100));
 }
 
-function groupProductsByCategory(products) {
+function groupProductsByCategory(products, categoryOrder = []) {
   const groups = new Map();
 
   products.forEach((product) => {
@@ -2126,7 +2281,67 @@ function groupProductsByCategory(products) {
     groups.set(category, list);
   });
 
-  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
+  return sortedCategories(products, categoryOrder).map((category) => [category, sortProductsForCatalog(groups.get(category) || [])]);
+}
+
+function sortedCategories(products, categoryOrder = []) {
+  const found = [...new Set(products.map((product) => product.category || 'Sem categoria'))];
+  const ordered = Array.isArray(categoryOrder) ? categoryOrder.filter((category) => found.includes(category)) : [];
+  const remaining = found.filter((category) => !ordered.includes(category)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...ordered, ...remaining];
+}
+
+function sortProductsForCatalog(products) {
+  return [...products].sort((a, b) => {
+    const orderDiff = normalizedSortOrder(a, 0) - normalizedSortOrder(b, 0);
+    if (orderDiff !== 0) return orderDiff;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+  });
+}
+
+function normalizedSortOrder(product, index) {
+  return Number.isFinite(Number(product?.sortOrder)) ? Number(product.sortOrder) : (index + 1) * 10;
+}
+
+function nextSortOrder(products) {
+  if (!products.length) return 10;
+  return Math.max(...products.map((product, index) => normalizedSortOrder(product, index))) + 10;
+}
+
+function parseDeliveryZones(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, fee = '0'] = line.split('=');
+      return { name: String(name || '').trim(), fee: Number(String(fee).replace(',', '.') || 0) };
+    })
+    .filter((zone) => zone.name);
+}
+
+function deliveryZonesToText(zones) {
+  return Array.isArray(zones) ? zones.map((zone) => `${zone.name}=${Number(zone.fee || 0)}`).join('\n') : '';
+}
+
+function storeOpenInfo(store) {
+  if (store.status === 'Fechado') {
+    return { open: false, message: 'Este estabelecimento esta fechado agora.' };
+  }
+
+  const match = String(store.hours || '').match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+  if (!match) return { open: true, message: '' };
+
+  const [, sh, sm, eh, em] = match.map(Number);
+  const now = new Date();
+  const current = now.getHours() * 60 + now.getMinutes();
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  const open = end >= start ? current >= start && current <= end : current >= start || current <= end;
+
+  return open
+    ? { open: true, message: '' }
+    : { open: false, message: `Fora do horario de atendimento (${store.hours}).` };
 }
 
 createRoot(document.getElementById('root')).render(<App />);

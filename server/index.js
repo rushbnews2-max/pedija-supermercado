@@ -229,7 +229,9 @@ app.post('/api/products', async (req, res) => {
     ...req.body,
     id: req.body.id || crypto.randomUUID(),
     price: Number(req.body.price || 0),
-    stock: Number(req.body.stock || 0)
+    stock: Number(req.body.stock || 0),
+    sortOrder: Number(req.body.sortOrder || Date.now()),
+    featured: Boolean(req.body.featured)
   };
 
   await updateDb((current) => updateScopedProducts(current, session, (products) => [product, ...products]));
@@ -247,7 +249,7 @@ app.post('/api/products/import', async (req, res) => {
     const currentCodes = new Set(scopedProducts.map((product) => String(product.code || '').trim()).filter(Boolean));
     const newProducts = products
       .filter((product) => !currentCodes.has(String(product.code || '').trim()))
-      .map((product) => ({
+      .map((product, index) => ({
         id: crypto.randomUUID(),
         code: product.code || '',
         name: product.name,
@@ -255,8 +257,10 @@ app.post('/api/products/import', async (req, res) => {
         category,
         image: '',
         promo: false,
+        featured: false,
         active: true,
-        stock: 0
+        stock: 0,
+        sortOrder: index + 1
       }));
     savedProducts = [...newProducts, ...scopedProducts];
 
@@ -275,7 +279,9 @@ app.put('/api/products/:id', async (req, res) => {
       ...product,
       ...req.body,
       price: Number(req.body.price || 0),
-      stock: Number(req.body.stock || 0)
+      stock: Number(req.body.stock || 0),
+      sortOrder: Number(req.body.sortOrder || product.sortOrder || 0),
+      featured: Boolean(req.body.featured)
     };
     return saved;
   })));
@@ -428,6 +434,8 @@ function withPlatformDefaults(db) {
     ...db,
     store: {
       segment: 'supermercado',
+      deliveryZones: [],
+      categoryOrder: [],
       ...db.store
     },
     establishments: establishments.map((item) => normalizeEstablishment({
@@ -514,7 +522,9 @@ function establishmentToStore(establishment) {
     pixName: establishment?.name || '',
     deliveryFee: 0,
     minOrder: 0,
-    deliveryAreas: ''
+    deliveryAreas: '',
+    deliveryZones: [],
+    categoryOrder: []
   };
 }
 

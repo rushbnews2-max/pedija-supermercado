@@ -22,7 +22,9 @@ const initialStore = {
   pixName: 'Super Feliz Super Mercado',
   deliveryFee: 0,
   minOrder: 0,
-  deliveryAreas: ''
+  deliveryAreas: '',
+  deliveryZones: [],
+  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios']
 };
 
 const initialProducts = [
@@ -35,6 +37,8 @@ const initialProducts = [
     promo: true,
     active: true,
     stock: 38,
+    featured: true,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -46,6 +50,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 94,
+    featured: false,
+    sortOrder: 20,
     image: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -57,6 +63,8 @@ const initialProducts = [
     promo: true,
     active: true,
     stock: 22,
+    featured: true,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -68,6 +76,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 58,
+    featured: false,
+    sortOrder: 10,
     image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=220&q=80'
   },
   {
@@ -79,6 +89,8 @@ const initialProducts = [
     promo: false,
     active: true,
     stock: 41,
+    featured: false,
+    sortOrder: 20,
     image: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?auto=format&fit=crop&w=220&q=80'
   }
 ];
