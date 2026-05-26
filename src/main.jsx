@@ -1109,7 +1109,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     setEditing({
       ...product,
       id: '',
-      code: product.code ? `${product.code}-copia` : '',
+      code: nextProductCode(products),
       name: `${product.name} (copia)`,
       sortOrder: nextSortOrder(categoryProducts),
       optionGroups: cloneOptionGroups(product.optionGroups)
@@ -2736,6 +2736,14 @@ function normalizedSortOrder(product, index) {
 function nextSortOrder(products) {
   if (!products.length) return 10;
   return Math.max(...products.map((product, index) => normalizedSortOrder(product, index))) + 10;
+}
+
+function nextProductCode(products) {
+  const numericCodes = products
+    .map((product) => Number(String(product.code || '').trim()))
+    .filter((code) => Number.isInteger(code) && code > 0);
+  if (!numericCodes.length) return '1';
+  return String(Math.max(...numericCodes) + 1);
 }
 
 function parseDeliveryZones(value) {
