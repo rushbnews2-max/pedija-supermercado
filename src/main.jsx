@@ -1049,7 +1049,7 @@ function StoreModal({ store, onSave, onClose }) {
         <label>Telefone / WhatsApp<input value={draft.phone} onChange={(event) => setField('phone', event.target.value)} required /></label>
         <label>Endereco<input value={draft.address} onChange={(event) => setField('address', event.target.value)} required /></label>
         <div className="form-grid">
-          <label>Horario<input value={draft.hours} onChange={(event) => setField('hours', event.target.value)} required /></label>
+          <label className="highlight-field">Horario de funcionamento<input value={draft.hours} onChange={(event) => setField('hours', event.target.value)} placeholder="Ex: 08:00 - 18:00" required /><small>Use o formato 08:00 - 18:00.</small></label>
           <label>Link do catalogo<input value={draft.catalogSlug} onChange={(event) => setField('catalogSlug', event.target.value)} /></label>
         </div>
         <div className="form-grid">

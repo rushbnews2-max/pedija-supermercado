@@ -1055,6 +1055,18 @@ input[type="file"] {
   gap: 10px;
 }
 
+.highlight-field {
+  padding: 10px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+}
+
+.highlight-field small {
+  color: #9a3412;
+  font-weight: 800;
+}
+
 .form-status.error-status {
   color: #b91c1c;
   background: #fff1f2;
