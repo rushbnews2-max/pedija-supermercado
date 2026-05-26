@@ -1718,6 +1718,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [orderStatus, setOrderStatus] = React.useState('');
   const [sendingOrder, setSendingOrder] = React.useState(false);
   const [customizingProduct, setCustomizingProduct] = React.useState(null);
+  const [cartMessage, setCartMessage] = React.useState('');
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
   const items = Object.entries(cart).map(([key, entry]) => {
     const productId = cartEntryProductId(key, entry);
@@ -1779,7 +1780,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         }
       };
     });
+    setCartMessage(`${product.name} foi salvo no carrinho.`);
   };
+  React.useEffect(() => {
+    if (!cartMessage) return undefined;
+    const timeout = window.setTimeout(() => setCartMessage(''), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [cartMessage]);
   const removeProduct = (product) => setCart((current) => {
     const key = Object.keys(current).reverse().find((itemKey) => cartEntryProductId(itemKey, current[itemKey]) === product.id);
     if (!key) return current;
@@ -1792,6 +1799,16 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   });
   const updateItemNote = (id, value) => setProductNotes((current) => ({ ...current, [id]: value }));
   const updateCustomerPhone = (value) => setCustomer((current) => ({ ...current, phone: formatBrazilPhone(value) }));
+  const goToPaymentStep = () => {
+    setOrderStatus('');
+    if (!items.length) return setOrderStatus('Adicione produtos ao pedido.');
+    if (belowMinOrder) return setOrderStatus(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
+    if (!customer.name.trim()) return setOrderStatus('Informe seu nome.');
+    if (!onlyDigits(customer.phone)) return setOrderStatus('Informe seu telefone.');
+    if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return setOrderStatus('Informe o endereco para entrega.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return setOrderStatus('Selecione o bairro de entrega.');
+    setCheckoutStep('payment');
+  };
 
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -1854,10 +1871,16 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 
   const submitOrder = async (event) => {
     event.preventDefault();
+    if (checkoutStep === 'address') {
+      goToPaymentStep();
+      return;
+    }
     setOrderStatus('');
     if (!items.length) return setOrderStatus('Adicione produtos ao pedido.');
     if (!closedInfo.open) return setOrderStatus(closedInfo.message);
     if (belowMinOrder) return setOrderStatus(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
+    if (!customer.name.trim()) return setOrderStatus('Informe seu nome.');
+    if (!onlyDigits(customer.phone)) return setOrderStatus('Informe seu telefone.');
     if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return setOrderStatus('Informe o endereco para entrega.');
     if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return setOrderStatus('Selecione o bairro de entrega.');
 
@@ -1930,6 +1953,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
             <strong>{closedInfo.message}</strong>
           </div>
         )}
+        {cartMessage && (
+          <div className="cart-toast">
+            <Check size={18} />
+            <span>{cartMessage}</span>
+          </div>
+        )}
 
         {checkoutStep === 'products' ? (
           <>
@@ -1945,7 +1974,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 {items.length > 3 && <span>+{items.length - 3} itens</span>}
               </div>
               <strong>{BRL.format(total)}</strong>
-              <button className="orange-button" type="button" disabled={!items.length} onClick={() => setCheckoutStep('checkout')}>
+              <button className="orange-button" type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')}>
                 <ShoppingBag size={18} /> Finalizar
               </button>
             </section>
@@ -2014,7 +2043,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
           <form className="cart-panel checkout-panel" onSubmit={submitOrder}>
             <div className="checkout-head">
               <button className="ghost-button" type="button" onClick={() => setCheckoutStep('products')}>Voltar aos produtos</button>
-              <h2>Finalizar pedido</h2>
+              <h2>{checkoutStep === 'address' ? 'Endereco e contato' : 'Pagamento'}</h2>
+            </div>
+            <div className="checkout-steps">
+              <span className={checkoutStep === 'address' ? 'active' : ''}>1. Endereco</span>
+              <span className={checkoutStep === 'payment' ? 'active' : ''}>2. Pagamento</span>
             </div>
             {items.length ? items.map((item) => (
               <div className="cart-line item-note-line" key={item.cartKey || item.productId}>
@@ -2033,63 +2066,77 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
             </div>
             {belowMinOrder && <p className="checkout-warning">Pedido minimo de {BRL.format(minOrder)}. Faltam {BRL.format(Math.max(0, minOrder - subtotal))} para finalizar.</p>}
-            <div className="coupon-box">
-              <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
-              <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
-              {couponMessage && <span>{couponMessage}</span>}
-              {discount > 0 && <strong>Desconto {BRL.format(discount)}</strong>}
-            </div>
-            <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
-            <label>Telefone<input value={customer.phone} onChange={(event) => updateCustomerPhone(event.target.value)} inputMode="tel" placeholder="(66)99999-9999" required /></label>
-            <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
-            {customer.deliveryMethod === 'Entrega' && (
-              <div className="location-box">
-                {deliveryZones.length > 0 && (
-                  <label>Bairro<select value={customer.deliveryNeighborhood} onChange={(event) => setCustomer({ ...customer, deliveryNeighborhood: event.target.value })} required>
-                    <option value="">Selecione o bairro</option>
-                    {deliveryZones.map((zone) => (
-                      <option value={zone.name} key={zone.name}>{zone.name} - {Number(zone.fee || 0) > 0 ? BRL.format(zone.fee) : 'Gratis'}</option>
-                    ))}
-                  </select></label>
-                )}
-                {store.deliveryAreas && (
-                  <div className="delivery-areas">
-                    <span>Areas atendidas</span>
-                    <strong>{store.deliveryAreas}</strong>
+            {checkoutStep === 'address' ? (
+              <>
+                <label>Nome<input value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} required /></label>
+                <label>Telefone<input value={customer.phone} onChange={(event) => updateCustomerPhone(event.target.value)} inputMode="tel" placeholder="(66)99999-9999" required /></label>
+                <label>Entrega<select value={customer.deliveryMethod} onChange={(event) => setCustomer({ ...customer, deliveryMethod: event.target.value })}><option>Entrega</option><option>Retirada</option></select></label>
+                {customer.deliveryMethod === 'Entrega' && (
+                  <div className="location-box">
+                    {deliveryZones.length > 0 && (
+                      <label>Bairro<select value={customer.deliveryNeighborhood} onChange={(event) => setCustomer({ ...customer, deliveryNeighborhood: event.target.value })} required>
+                        <option value="">Selecione o bairro</option>
+                        {deliveryZones.map((zone) => (
+                          <option value={zone.name} key={zone.name}>{zone.name} - {Number(zone.fee || 0) > 0 ? BRL.format(zone.fee) : 'Gratis'}</option>
+                        ))}
+                      </select></label>
+                    )}
+                    {store.deliveryAreas && (
+                      <div className="delivery-areas">
+                        <span>Areas atendidas</span>
+                        <strong>{store.deliveryAreas}</strong>
+                      </div>
+                    )}
+                    <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
+                    <button className="ghost-button" type="button" onClick={useCurrentLocation} disabled={locationLoading}>
+                      <MapPin size={17} /> {locationLoading ? 'Buscando...' : 'Usar minha localizacao'}
+                    </button>
+                    {locationStatus && <p>{locationStatus}</p>}
+                    {deliveryLocation?.mapsUrl && <a href={deliveryLocation.mapsUrl} target="_blank" rel="noreferrer">Abrir localizacao no mapa</a>}
                   </div>
                 )}
-                <label>Endereco<input value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} required /></label>
-                <button className="ghost-button" type="button" onClick={useCurrentLocation} disabled={locationLoading}>
-                  <MapPin size={17} /> {locationLoading ? 'Buscando...' : 'Usar minha localizacao'}
-                </button>
-                {locationStatus && <p>{locationStatus}</p>}
-                {deliveryLocation?.mapsUrl && <a href={deliveryLocation.mapsUrl} target="_blank" rel="noreferrer">Abrir localizacao no mapa</a>}
-              </div>
-            )}
-            <label>Se faltar algum produto<select value={customer.substitution} onChange={(event) => setCustomer({ ...customer, substitution: event.target.value })}>
-              <option>Me chamar no WhatsApp</option>
-              <option>Pode substituir por similar</option>
-              <option>Remover do pedido</option>
-            </select></label>
-            <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
-            <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
-            {customer.payment === 'PIX' && (
-              <div className="pix-manual-box">
-                <span>Pagamento via PIX manual</span>
-                {store.pixKey ? (
-                  <>
-                    <strong>{store.pixKey}</strong>
-                    <small>{store.pixName || store.name}</small>
-                    <button className="ghost-button" type="button" onClick={() => copyPixKey(store.pixKey)}>Copiar chave PIX</button>
-                    <p>Depois de pagar, envie o comprovante pelo WhatsApp do mercado.</p>
-                  </>
-                ) : (
-                  <p>Este estabelecimento ainda nao cadastrou uma chave PIX.</p>
+                <label>Se faltar algum produto<select value={customer.substitution} onChange={(event) => setCustomer({ ...customer, substitution: event.target.value })}>
+                  <option>Me chamar no WhatsApp</option>
+                  <option>Pode substituir por similar</option>
+                  <option>Remover do pedido</option>
+                </select></label>
+                <label>Observacoes<textarea value={customer.notes} onChange={(event) => setCustomer({ ...customer, notes: event.target.value })} placeholder="Ex: troco, ponto de referencia, item substituto" /></label>
+              </>
+            ) : (
+              <>
+                <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
+                <div className="coupon-box">
+                  <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
+                  <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
+                  {couponMessage && <span>{couponMessage}</span>}
+                  {discount > 0 && <strong>Desconto {BRL.format(discount)}</strong>}
+                </div>
+                {customer.payment === 'PIX' && (
+                  <div className="pix-manual-box">
+                    <span>Pagamento via PIX manual</span>
+                    {store.pixKey ? (
+                      <>
+                        <strong>{store.pixKey}</strong>
+                        <small>{store.pixName || store.name}</small>
+                        <button className="ghost-button" type="button" onClick={() => copyPixKey(store.pixKey)}>Copiar chave PIX</button>
+                        <p>Depois de pagar, envie o comprovante pelo WhatsApp do mercado.</p>
+                      </>
+                    ) : (
+                      <p>Este estabelecimento ainda nao cadastrou uma chave PIX.</p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
             {orderStatus && <p className="checkout-warning">{orderStatus}</p>}
-            <button className="orange-button" type="submit" disabled={sendingOrder}><ShoppingBag size={18} /> {sendingOrder ? 'Enviando...' : 'Enviar pedido'}</button>
+            {checkoutStep === 'address' ? (
+              <button className="orange-button" type="button" onClick={goToPaymentStep}>Ir para pagamento</button>
+            ) : (
+              <div className="checkout-action-row">
+                <button className="ghost-button" type="button" onClick={() => setCheckoutStep('address')}>Voltar ao endereco</button>
+                <button className="orange-button" type="submit" disabled={sendingOrder}><ShoppingBag size={18} /> {sendingOrder ? 'Enviando...' : 'Enviar pedido'}</button>
+              </div>
+            )}
           </form>
         )}
       </section>
