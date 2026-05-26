@@ -1724,11 +1724,13 @@ function PrintOrderPage({ store, order, loading }) {
 }
 
 function Catalog({ store, products, coupons, onOrder, storeSlug }) {
+  const historyStorageKey = `pedija-order-history:${storeSlug || store.catalogSlug || store.name || 'catalogo'}`;
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
   const [productNotes, setProductNotes] = React.useState({});
   const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
+  const [orderHistory, setOrderHistory] = React.useState(() => readOrderHistory(historyStorageKey));
   const [checkoutStep, setCheckoutStep] = React.useState('products');
   const [couponCode, setCouponCode] = React.useState('');
   const [appliedCoupon, setAppliedCoupon] = React.useState(null);
@@ -1808,6 +1810,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
     const timeout = window.setTimeout(() => setCartMessage(''), 2800);
     return () => window.clearTimeout(timeout);
   }, [cartMessage]);
+  React.useEffect(() => {
+    setOrderHistory(readOrderHistory(historyStorageKey));
+  }, [historyStorageKey]);
   const removeProduct = (product) => setCart((current) => {
     const key = Object.keys(current).reverse().find((itemKey) => cartEntryProductId(itemKey, current[itemKey]) === product.id);
     if (!key) return current;
@@ -1820,6 +1825,40 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   });
   const updateItemNote = (id, value) => setProductNotes((current) => ({ ...current, [id]: value }));
   const updateCustomerPhone = (value) => setCustomer((current) => ({ ...current, phone: formatBrazilPhone(value) }));
+  const restoreOrderToCart = (order) => {
+    const nextCart = {};
+    const nextNotes = {};
+
+    (order.items || []).forEach((item) => {
+      const product = products.find((current) => current.id === item.productId && current.active !== false);
+      if (!product) return;
+      const options = {
+        optionGroups: item.optionGroups || [],
+        optionsPrice: Number(item.optionsPrice || 0),
+        flavors: item.flavors || [],
+        border: item.border || '',
+        flavorPrice: Number(item.flavorPrice || 0),
+        borderPrice: Number(item.borderPrice || 0)
+      };
+      const key = cartKey(product.id, options);
+      nextCart[key] = {
+        productId: product.id,
+        qty: Number(item.qty || 1),
+        ...options
+      };
+      if (item.notes) nextNotes[key] = item.notes;
+    });
+
+    if (!Object.keys(nextCart).length) {
+      setCartMessage('Nao encontrei produtos ativos desse pedido no catalogo atual.');
+      return;
+    }
+
+    setCart(nextCart);
+    setProductNotes(nextNotes);
+    setCheckoutStep('products');
+    setCartMessage('Pedido anterior carregado no carrinho.');
+  };
   const goToPaymentStep = () => {
     setOrderStatus('');
     if (!items.length) return setOrderStatus('Adicione produtos ao pedido.');
@@ -1930,7 +1969,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         createdAt: 'Agora',
         items
       });
-      setSentOrder({ id: orderId, customer: customer.name, phone: formattedPhone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' });
+      const savedOrder = { id: orderId, customer: customer.name, phone: formattedPhone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' };
+      setSentOrder(savedOrder);
+      setOrderHistory(saveOrderHistory(historyStorageKey, savedOrder));
       setCart({});
       setProductNotes({});
       setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
@@ -1999,6 +2040,28 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 <ShoppingBag size={18} /> Finalizar
               </button>
             </section>
+            {orderHistory.length > 0 && (
+              <section className="order-history-panel">
+                <div className="order-history-head">
+                  <div>
+                    <span>Meus pedidos</span>
+                    <strong>Ultimos pedidos feitos aqui</strong>
+                  </div>
+                </div>
+                <div className="order-history-list">
+                  {orderHistory.slice(0, 4).map((order) => (
+                    <article key={`${order.id}-${order.savedAt}`}>
+                      <div>
+                        <strong>Pedido #{order.id}</strong>
+                        <span>{order.items?.slice(0, 2).map((item) => `${item.qty}x ${item.name}`).join(', ')}{order.items?.length > 2 ? ` +${order.items.length - 2}` : ''}</span>
+                        <small>{formatHistoryDate(order.savedAt)} - {BRL.format(order.total || orderTotal(order))}</small>
+                      </div>
+                      <button className="ghost-button" type="button" onClick={() => restoreOrderToCart(order)}>Refazer</button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className="catalog-products">
               <div className="search-box">
@@ -3115,6 +3178,48 @@ function cartEntryProductId(key, entry) {
 
 function cartEntryQty(entry) {
   return typeof entry === 'number' ? entry : Number(entry?.qty || 0);
+}
+
+function readOrderHistory(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOrderHistory(key, order) {
+  const historyItem = {
+    id: order.id,
+    savedAt: new Date().toISOString(),
+    total: order.total || orderTotal(order),
+    items: (order.items || []).map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      qty: item.qty,
+      notes: item.notes || '',
+      optionGroups: item.optionGroups || [],
+      optionsPrice: Number(item.optionsPrice || 0),
+      flavors: item.flavors || [],
+      border: item.border || '',
+      borderPrice: Number(item.borderPrice || 0),
+      flavorPrice: Number(item.flavorPrice || 0)
+    }))
+  };
+  const next = [historyItem, ...readOrderHistory(key).filter((item) => item.id !== order.id)].slice(0, 8);
+  localStorage.setItem(key, JSON.stringify(next));
+  return next;
+}
+
+function formatHistoryDate(value) {
+  if (!value) return 'Pedido recente';
+  try {
+    return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  } catch {
+    return 'Pedido recente';
+  }
 }
 
 function productCartQty(cart, productId) {
