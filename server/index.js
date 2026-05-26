@@ -269,7 +269,8 @@ app.post('/api/products', async (req, res) => {
     featured: Boolean(req.body.featured),
     productType: req.body.productType || 'normal',
     slices: Number(req.body.slices || 0),
-    maxFlavors: Number(req.body.maxFlavors || 1)
+    maxFlavors: Number(req.body.maxFlavors || 1),
+    optionGroups: normalizeProductOptionGroups(req.body.optionGroups)
   };
 
   await updateDb((current) => updateScopedProducts(current, session, (products) => [product, ...products]));
@@ -301,7 +302,8 @@ app.post('/api/products/import', async (req, res) => {
         sortOrder: index + 1,
         productType: 'normal',
         slices: 0,
-        maxFlavors: 1
+        maxFlavors: 1,
+        optionGroups: []
       }));
     savedProducts = [...newProducts, ...scopedProducts];
 
@@ -325,7 +327,8 @@ app.put('/api/products/:id', async (req, res) => {
       featured: Boolean(req.body.featured),
       productType: req.body.productType || product.productType || 'normal',
       slices: Number(req.body.slices || 0),
-      maxFlavors: Number(req.body.maxFlavors || product.maxFlavors || 1)
+      maxFlavors: Number(req.body.maxFlavors || product.maxFlavors || 1),
+      optionGroups: normalizeProductOptionGroups(req.body.optionGroups ?? product.optionGroups)
     };
     return saved;
   })));
@@ -543,7 +546,10 @@ function normalizeEstablishment(value) {
     adminUser: value.adminUser || 'admin',
     adminPassword: value.adminPassword || generateAccessPassword(),
     store,
-    products: Array.isArray(value.products) ? value.products : [],
+    products: Array.isArray(value.products) ? value.products.map((product) => ({
+      ...product,
+      optionGroups: normalizeProductOptionGroups(product.optionGroups)
+    })) : [],
     orders: Array.isArray(value.orders) ? value.orders : [],
     coupons: Array.isArray(value.coupons) ? value.coupons.map((coupon) => normalizeCoupon(coupon)) : []
   };
@@ -559,6 +565,30 @@ function normalizeCoupon(value) {
     minOrder: Math.max(0, Number(value.minOrder || 0)),
     active: value.active !== false
   };
+}
+
+function normalizeProductOptionGroups(groups) {
+  if (!Array.isArray(groups)) return [];
+  return groups
+    .map((group) => ({
+      id: group.id || crypto.randomUUID(),
+      name: String(group.name || '').trim(),
+      min: Math.max(0, Number(group.min || 0)),
+      max: Math.max(1, Number(group.max || 1)),
+      pricing: ['sum', 'highest', 'free'].includes(group.pricing) ? group.pricing : 'sum',
+      options: normalizePricedOptions(group.options)
+    }))
+    .filter((group) => group.name && group.options.length);
+}
+
+function normalizePricedOptions(options) {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((option) => ({
+      name: String(option.name || '').trim(),
+      price: Number(option.price || 0)
+    }))
+    .filter((option) => option.name);
 }
 
 function generateAccessPassword() {

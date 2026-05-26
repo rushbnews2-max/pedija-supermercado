@@ -1092,7 +1092,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     category,
     sortProductsForCatalog(products.filter((product) => (product.category || 'Sem categoria') === category))
   ]);
-  const productTabs = store.segment === 'pizzaria' ? ['Produtos', 'Categorias', 'Opcoes de Pizza'] : ['Produtos', 'Categorias'];
+  const productTabs = ['Produtos', 'Categorias'];
   const savePizzaOptions = async (field, value) => {
     await setStore({ ...store, [field]: parsePricedOptions(value) });
   };
@@ -1141,7 +1141,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
       {tab === 'Produtos' ? (
         <>
           <div className="product-toolbar">
-            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true, productType: 'normal' })}>
+            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true, productType: 'normal', optionGroups: [] })}>
               <Plus size={18} /> Novo Produto
             </button>
             <button className="ghost-button new-product" onClick={() => setImporting(true)}>
@@ -1195,13 +1195,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             ))}
           </section>
         </>
-      ) : (
-        <PizzaOptionsPanel
-          store={store}
-          onSaveFlavors={(value) => savePizzaOptions('pizzaFlavors', value)}
-          onSaveBorders={(value) => savePizzaOptions('pizzaBorders', value)}
-        />
-      )}
+      ) : null}
       {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
       {importing && <PdfImportModal importProducts={importProducts} onClose={() => setImporting(false)} />}
     </>
@@ -1220,6 +1214,7 @@ function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMo
       <span className="green-pill">{product.active ? 'Ativo' : 'Inativo'}</span>
       {product.promo && <span className="promo-pill">🔥 Promocao</span>}
       {product.featured && <span className="featured-pill"><Star size={13} /> Destaque</span>}
+      {isConfigurableProduct(product) && <span className="featured-pill"><Settings size={13} /> Com escolhas</span>}
       <span className="stock">Estoque {product.stock}</span>
       <div className="row-actions">
         <button aria-label="Subir produto" disabled={isFirst} onClick={onMoveUp}><ChevronUp size={17} /></button>
@@ -1278,13 +1273,49 @@ function ProductThumb({ product }) {
 }
 
 function ProductModal({ store, product, onSave, onClose }) {
-  const [draft, setDraft] = React.useState(product);
+  const [draft, setDraft] = React.useState(() => normalizeProductForEditing(product, store));
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
-  const isPizza = store?.segment === 'pizzaria';
+  const configurable = isConfigurableProduct(draft);
+  const updateGroup = (index, field, value) => setDraft((current) => {
+    const optionGroups = normalizeOptionGroups(current.optionGroups).map((group, groupIndex) => (
+      groupIndex === index ? { ...group, [field]: value } : group
+    ));
+    return { ...current, optionGroups };
+  });
+  const updateGroupOptions = (index, value) => updateGroup(index, 'optionsText', value);
+  const addGroup = () => setDraft((current) => ({
+    ...current,
+    optionGroups: [
+      ...normalizeOptionGroups(current.optionGroups),
+      { id: crypto.randomUUID(), name: 'Adicionais', min: 0, max: 1, pricing: 'sum', optionsText: '' }
+    ]
+  }));
+  const removeGroup = (index) => setDraft((current) => ({
+    ...current,
+    optionGroups: normalizeOptionGroups(current.optionGroups).filter((_, groupIndex) => groupIndex !== index)
+  }));
+  const applyPreset = (preset) => setDraft((current) => ({
+    ...current,
+    productType: 'custom',
+    optionGroups: presetOptionGroups(preset)
+  }));
+  const submit = (event) => {
+    event.preventDefault();
+    const optionGroups = configurable ? prepareOptionGroupsForSave(draft.optionGroups) : [];
+    onSave({
+      ...draft,
+      price: Number(draft.price),
+      stock: Number(draft.stock),
+      slices: Number(draft.slices || 0),
+      maxFlavors: Number(draft.maxFlavors || 1),
+      productType: configurable ? 'custom' : 'normal',
+      optionGroups
+    });
+  };
 
   return (
     <div className="overlay">
-      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, price: Number(draft.price), stock: Number(draft.stock), slices: Number(draft.slices || 0), maxFlavors: Number(draft.maxFlavors || 1), productType: draft.productType || 'normal' }); }}>
+      <form className="modal" onSubmit={submit}>
         <div className="modal-head">
           <h2>{draft.id ? 'Editar produto' : 'Novo produto'}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
@@ -1296,21 +1327,48 @@ function ProductModal({ store, product, onSave, onClose }) {
         </div>
         <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
         <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
-        {isPizza && (
-          <label>Tipo do produto<select value={draft.productType || 'normal'} onChange={(event) => setField('productType', event.target.value)}>
-            <option value="normal">Produto normal</option>
-            <option value="pizza">Pizza</option>
+        <label>Tipo de venda<select value={configurable ? 'custom' : 'normal'} onChange={(event) => setField('productType', event.target.value)}>
+            <option value="normal">Produto simples</option>
+            <option value="custom">Produto com escolhas</option>
           </select></label>
-        )}
         <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
-        {isPizza && (draft.productType || 'normal') === 'pizza' && (
-          <section className="segment-options">
-            <strong>Configuracao desta pizza</strong>
+        {configurable && (
+          <section className="segment-options product-options-editor">
+            <div className="options-editor-head">
+              <div>
+                <strong>Montagem deste produto</strong>
+                <small>Use para pizza, lanche, marmita, porcao ou qualquer produto com acrescimos.</small>
+              </div>
+              <button className="ghost-button" type="button" onClick={addGroup}><Plus size={16} /> Grupo</button>
+            </div>
             <div className="form-grid">
               <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>
-              <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Media, Grande" /></label>
+              <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Grande, 500g, X-tudo" /></label>
             </div>
-            <label>Maximo de sabores<input type="number" min="1" value={draft.maxFlavors || 1} onChange={(event) => setField('maxFlavors', event.target.value)} /></label>
+            <div className="preset-actions">
+              <button type="button" onClick={() => applyPreset('pizza')}>Modelo pizza</button>
+              <button type="button" onClick={() => applyPreset('snack')}>Modelo lanche</button>
+              <button type="button" onClick={() => applyPreset('meal')}>Modelo marmita</button>
+            </div>
+            {normalizeOptionGroups(draft.optionGroups).map((group, index) => (
+              <article className="option-group-editor" key={group.id || index}>
+                <div className="option-group-title">
+                  <label>Nome do grupo<input value={group.name} onChange={(event) => updateGroup(index, 'name', event.target.value)} placeholder="Sabores, Borda, Adicionais" /></label>
+                  <button type="button" className="danger-text-button" onClick={() => removeGroup(index)}><Trash2 size={15} /> Remover</button>
+                </div>
+                <div className="form-grid compact-grid">
+                  <label>Minimo<input type="number" min="0" value={group.min} onChange={(event) => updateGroup(index, 'min', event.target.value)} /></label>
+                  <label>Maximo<input type="number" min="1" value={group.max} onChange={(event) => updateGroup(index, 'max', event.target.value)} /></label>
+                  <label>Preco<select value={group.pricing || 'sum'} onChange={(event) => updateGroup(index, 'pricing', event.target.value)}>
+                    <option value="sum">Somar opcoes</option>
+                    <option value="highest">Cobrar maior valor</option>
+                    <option value="free">Nao cobrar</option>
+                  </select></label>
+                </div>
+                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa=0&#10;Frango com catupiry=5&#10;Cheddar=7" /></label>
+              </article>
+            ))}
+            {!normalizeOptionGroups(draft.optionGroups).length && <p className="empty">Clique em Grupo ou escolha um modelo para cadastrar sabores, bordas e adicionais.</p>}
           </section>
         )}
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
@@ -1657,11 +1715,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       price: product.price,
       qty,
       notes: productNotes[key] || '',
+      optionGroups: Array.isArray(entry?.optionGroups) ? entry.optionGroups : [],
+      optionsPrice: Number(entry?.optionsPrice || 0),
       flavors: Array.isArray(entry?.flavors) ? entry.flavors : [],
       border: entry?.border || '',
       borderPrice: Number(entry?.borderPrice || 0),
       flavorPrice: Number(entry?.flavorPrice || 0),
-      slices: product.productType === 'pizza' ? product.slices || 0 : 0,
+      slices: isConfigurableProduct(product) ? product.slices || 0 : 0,
       pizzaSize: product.pizzaSize || ''
     } : null;
   }).filter(Boolean);
@@ -1678,7 +1738,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const featuredProducts = sortProductsForCatalog(activeProducts.filter((product) => product.featured || product.promo)).slice(0, 12);
 
   const addProduct = (product) => {
-    if (isPizzaProduct(product)) {
+    if (isConfigurableProduct(product)) {
       setCustomizingProduct(product);
       return;
     }
@@ -1692,7 +1752,16 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       const qty = cartEntryQty(currentEntry) + 1;
       return {
         ...current,
-        [key]: { productId: product.id, qty, flavors: options.flavors || [], border: options.border || '', flavorPrice: Number(options.flavorPrice || 0), borderPrice: Number(options.borderPrice || 0) }
+        [key]: {
+          productId: product.id,
+          qty,
+          optionGroups: options.optionGroups || [],
+          optionsPrice: Number(options.optionsPrice || 0),
+          flavors: options.flavors || [],
+          border: options.border || '',
+          flavorPrice: Number(options.flavorPrice || 0),
+          borderPrice: Number(options.borderPrice || 0)
+        }
       };
     });
   };
@@ -2010,7 +2079,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         )}
       </section>
       {customizingProduct && (
-        <PizzaCustomizeModal
+        <ProductCustomizeModal
           store={store}
           product={customizingProduct}
           onClose={() => setCustomizingProduct(null)}
@@ -2024,32 +2093,45 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   );
 }
 
-function PizzaCustomizeModal({ store, product, onAdd, onClose }) {
-  const flavors = Array.isArray(store.pizzaFlavors) ? store.pizzaFlavors : [];
-  const borders = Array.isArray(store.pizzaBorders) ? store.pizzaBorders : [];
-  const maxFlavors = Math.max(1, Number(product.maxFlavors || 1));
-  const [selectedFlavors, setSelectedFlavors] = React.useState([]);
-  const [borderName, setBorderName] = React.useState(borders[0]?.name || '');
-  const flavorPrice = selectedFlavors.reduce((max, name) => {
-    const option = flavors.find((item) => item.name === name);
-    return Math.max(max, Number(option?.price || 0));
-  }, 0);
-  const border = borders.find((item) => item.name === borderName);
-  const borderPrice = Number(border?.price || 0);
-  const finalPrice = Number(product.price || 0) + flavorPrice + borderPrice;
+function ProductCustomizeModal({ store, product, onAdd, onClose }) {
+  const groups = optionGroupsForProduct(product, store);
+  const [selected, setSelected] = React.useState(() => initialSelectedOptions(groups));
+  const selectedOptionGroups = buildSelectedOptionGroups(groups, selected);
+  const optionsPrice = calculateOptionsPrice(groups, selected);
+  const finalPrice = Number(product.price || 0) + optionsPrice;
+  const validation = validateSelectedOptions(groups, selected);
 
-  const toggleFlavor = (name) => {
-    setSelectedFlavors((current) => {
-      if (current.includes(name)) return current.filter((item) => item !== name);
-      if (current.length >= maxFlavors) return [...current.slice(1), name];
-      return [...current, name];
+  const toggleOption = (group, option) => {
+    setSelected((current) => {
+      const currentNames = current[group.id] || [];
+      const selectedAlready = currentNames.includes(option.name);
+      if (selectedAlready) {
+        return { ...current, [group.id]: currentNames.filter((name) => name !== option.name) };
+      }
+
+      if (Number(group.max || 1) <= 1) {
+        return { ...current, [group.id]: [option.name] };
+      }
+
+      if (currentNames.length >= Number(group.max || 1)) {
+        return { ...current, [group.id]: [...currentNames.slice(1), option.name] };
+      }
+
+      return { ...current, [group.id]: [...currentNames, option.name] };
     });
   };
 
   const submit = (event) => {
     event.preventDefault();
-    if (!selectedFlavors.length && flavors.length) return;
-    onAdd({ flavors: selectedFlavors, border: borderName, flavorPrice, borderPrice });
+    if (validation) return;
+    onAdd({
+      optionGroups: selectedOptionGroups,
+      optionsPrice,
+      flavors: selectedOptionGroups.find((group) => isFlavorGroup(group.name))?.options.map((item) => item.name) || [],
+      border: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.options[0]?.name || '',
+      flavorPrice: selectedOptionGroups.find((group) => isFlavorGroup(group.name))?.price || 0,
+      borderPrice: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.price || 0
+    });
   };
 
   return (
@@ -2062,24 +2144,25 @@ function PizzaCustomizeModal({ store, product, onAdd, onClose }) {
         {(product.pizzaSize || product.slices) && (
           <p className="pizza-summary">{[product.pizzaSize, product.slices ? `${product.slices} fatias` : ''].filter(Boolean).join(' - ')}</p>
         )}
-        {flavors.length > 0 && (
-          <div className="pizza-choice-list">
-            <strong>Escolha ate {maxFlavors} sabor{maxFlavors > 1 ? 'es' : ''}</strong>
-            {flavors.map((item) => (
+        {groups.map((group) => (
+          <div className="pizza-choice-list" key={group.id}>
+            <strong>{group.name} <small>{optionGroupRuleText(group)}</small></strong>
+            {group.options.map((item) => (
               <label className="check-line" key={item.name}>
-                <input type="checkbox" checked={selectedFlavors.includes(item.name)} onChange={() => toggleFlavor(item.name)} />
+                <input
+                  type={Number(group.max || 1) <= 1 ? 'radio' : 'checkbox'}
+                  name={`group-${group.id}`}
+                  checked={(selected[group.id] || []).includes(item.name)}
+                  onChange={() => toggleOption(group, item)}
+                />
                 <span>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</span>
               </label>
             ))}
           </div>
-        )}
-        {borders.length > 0 && (
-          <label>Borda<select value={borderName} onChange={(event) => setBorderName(event.target.value)}>
-            {borders.map((item) => <option key={item.name} value={item.name}>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</option>)}
-          </select></label>
-        )}
+        ))}
+        {validation && <p className="checkout-warning">{validation}</p>}
         <div className="pizza-total"><span>Total</span><strong>{BRL.format(finalPrice)}</strong></div>
-        <button className="orange-button" type="submit" disabled={flavors.length > 0 && !selectedFlavors.length}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+        <button className="orange-button" type="submit" disabled={Boolean(validation)}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
       </form>
     </div>
   );
@@ -2571,7 +2654,7 @@ function orderTotal(order) {
 }
 
 function itemUnitPrice(item) {
-  return Number(item.price || 0) + Number(item.flavorPrice || 0) + Number(item.borderPrice || 0);
+  return Number(item.price || 0) + Number(item.optionsPrice ?? (Number(item.flavorPrice || 0) + Number(item.borderPrice || 0)));
 }
 
 function couponDiscount(coupon, subtotal) {
@@ -2660,12 +2743,159 @@ function pricedOptionsToText(value) {
   return parsePricedOptions(value).map((item) => `${item.name}=${Number(item.price || 0)}`).join('\n');
 }
 
-function isPizzaProduct(product) {
-  return product?.productType === 'pizza';
+function isConfigurableProduct(product) {
+  return ['custom', 'pizza'].includes(product?.productType);
+}
+
+function normalizeProductForEditing(product, store) {
+  const normalized = { ...product };
+  if (normalized.productType === 'pizza') normalized.productType = 'custom';
+  if (!Array.isArray(normalized.optionGroups) || !normalized.optionGroups.length) {
+    normalized.optionGroups = optionGroupsForProduct(product, store);
+  } else {
+    normalized.optionGroups = normalizeOptionGroups(normalized.optionGroups);
+  }
+  return normalized;
+}
+
+function normalizeOptionGroups(groups) {
+  if (!Array.isArray(groups)) return [];
+  return groups.map((group, index) => ({
+    id: group.id || `group-${index}-${normalizeText(group.name || 'opcao')}`,
+    name: String(group.name || '').trim(),
+    min: Number(group.min || 0),
+    max: Math.max(1, Number(group.max || 1)),
+    pricing: group.pricing || 'sum',
+    options: parsePricedOptions(group.options || group.optionsText || ''),
+    optionsText: group.optionsText ?? pricedOptionsToText(group.options || [])
+  })).filter((group) => group.name);
+}
+
+function prepareOptionGroupsForSave(groups) {
+  return normalizeOptionGroups(groups)
+    .map((group) => ({
+      id: group.id || crypto.randomUUID(),
+      name: group.name,
+      min: Math.max(0, Number(group.min || 0)),
+      max: Math.max(1, Number(group.max || 1)),
+      pricing: group.pricing || 'sum',
+      options: parsePricedOptions(group.optionsText ?? group.options)
+    }))
+    .filter((group) => group.name && group.options.length);
+}
+
+function presetOptionGroups(type) {
+  const presets = {
+    pizza: [
+      { name: 'Sabores', min: 1, max: 2, pricing: 'highest', optionsText: 'Mussarela=0\nCalabresa=0\nFrango com catupiry=5' },
+      { name: 'Borda', min: 0, max: 1, pricing: 'sum', optionsText: 'Sem borda=0\nCatupiry=6\nCheddar=7' }
+    ],
+    snack: [
+      { name: 'Ponto/observacao', min: 0, max: 1, pricing: 'free', optionsText: 'Sem cebola=0\nSem tomate=0\nBem passado=0' },
+      { name: 'Adicionais', min: 0, max: 5, pricing: 'sum', optionsText: 'Bacon=4\nCheddar=3\nOvo=2' }
+    ],
+    meal: [
+      { name: 'Acompanhamentos', min: 1, max: 3, pricing: 'free', optionsText: 'Arroz=0\nFeijao=0\nSalada=0\nFarofa=0' },
+      { name: 'Adicionais', min: 0, max: 5, pricing: 'sum', optionsText: 'Ovo=2\nCarne extra=8\nQueijo=3' }
+    ]
+  };
+
+  return (presets[type] || []).map((group) => ({ ...group, id: crypto.randomUUID(), options: parsePricedOptions(group.optionsText) }));
+}
+
+function optionGroupsForProduct(product, store) {
+  if (Array.isArray(product?.optionGroups) && product.optionGroups.length) return normalizeOptionGroups(product.optionGroups);
+  if (product?.productType !== 'pizza') return [];
+
+  const groups = [];
+  const flavors = parsePricedOptions(store?.pizzaFlavors || []);
+  const borders = parsePricedOptions(store?.pizzaBorders || []);
+  if (flavors.length) {
+    groups.push({
+      id: 'legacy-flavors',
+      name: 'Sabores',
+      min: 1,
+      max: Math.max(1, Number(product.maxFlavors || 1)),
+      pricing: 'highest',
+      options: flavors,
+      optionsText: pricedOptionsToText(flavors)
+    });
+  }
+  if (borders.length) {
+    groups.push({
+      id: 'legacy-borders',
+      name: 'Borda',
+      min: 0,
+      max: 1,
+      pricing: 'sum',
+      options: borders,
+      optionsText: pricedOptionsToText(borders)
+    });
+  }
+  return normalizeOptionGroups(groups);
+}
+
+function initialSelectedOptions(groups) {
+  return groups.reduce((selected, group) => {
+    selected[group.id] = [];
+    return selected;
+  }, {});
+}
+
+function buildSelectedOptionGroups(groups, selected) {
+  return groups.map((group) => {
+    const names = selected[group.id] || [];
+    const options = group.options.filter((option) => names.includes(option.name));
+    return {
+      name: group.name,
+      pricing: group.pricing,
+      options,
+      price: calculateGroupPrice(group, options)
+    };
+  }).filter((group) => group.options.length);
+}
+
+function calculateOptionsPrice(groups, selected) {
+  return buildSelectedOptionGroups(groups, selected).reduce((sum, group) => sum + Number(group.price || 0), 0);
+}
+
+function calculateGroupPrice(group, options) {
+  if (group.pricing === 'free') return 0;
+  if (group.pricing === 'highest') return options.reduce((max, option) => Math.max(max, Number(option.price || 0)), 0);
+  return options.reduce((sum, option) => sum + Number(option.price || 0), 0);
+}
+
+function validateSelectedOptions(groups, selected) {
+  for (const group of groups) {
+    const count = (selected[group.id] || []).length;
+    if (count < Number(group.min || 0)) return `Escolha pelo menos ${group.min} opcao em ${group.name}.`;
+    if (count > Number(group.max || 1)) return `Escolha no maximo ${group.max} opcoes em ${group.name}.`;
+  }
+  return '';
+}
+
+function optionGroupRuleText(group) {
+  const min = Number(group.min || 0);
+  const max = Number(group.max || 1);
+  if (min && max && min === max) return `(escolha ${max})`;
+  if (min && max) return `(escolha de ${min} ate ${max})`;
+  return `(ate ${max})`;
+}
+
+function isFlavorGroup(name) {
+  const text = normalizeText(name);
+  return text.includes('sabor') || text.includes('sabores');
+}
+
+function normalizeText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function cartKey(productId, options = {}) {
-  return [productId, (options.flavors || []).join('+'), options.border || ''].map((part) => encodeURIComponent(part)).join('::');
+  const groupsKey = Array.isArray(options.optionGroups)
+    ? options.optionGroups.map((group) => `${group.name}:${group.options.map((item) => item.name).join('+')}`).join('|')
+    : [(options.flavors || []).join('+'), options.border || ''].join('|');
+  return [productId, groupsKey].map((part) => encodeURIComponent(part)).join('::');
 }
 
 function cartEntryProductId(key, entry) {
@@ -2684,6 +2914,18 @@ function productCartQty(cart, productId) {
 }
 
 function formatItemOptions(item) {
+  if (Array.isArray(item.optionGroups) && item.optionGroups.length) {
+    return [
+      item.pizzaSize,
+      item.slices ? `${item.slices} fatias` : '',
+      ...item.optionGroups.map((group) => {
+        const names = group.options.map((option) => option.name).join(', ');
+        const price = Number(group.price || 0);
+        return `${group.name}: ${names}${price > 0 ? ` (+ ${BRL.format(price)})` : ''}`;
+      })
+    ].filter(Boolean).join(' | ');
+  }
+
   return [
     item.pizzaSize,
     item.slices ? `${item.slices} fatias` : '',

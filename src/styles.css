@@ -1109,6 +1109,74 @@ input[type="file"] {
   color: #1e3a8a;
 }
 
+.product-options-editor {
+  background: #f8fbff;
+}
+
+.options-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.options-editor-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.options-editor-head small,
+.option-group-editor small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.preset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-actions button,
+.danger-text-button {
+  min-height: 36px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #20324d;
+  font-weight: 800;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.option-group-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.option-group-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.compact-grid {
+  grid-template-columns: .65fr .65fr 1.3fr;
+}
+
+.danger-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #e11d48;
+  border-color: #fecdd3;
+}
+
 .pizza-options-panel {
   max-width: 760px;
   display: grid;
@@ -2005,6 +2073,12 @@ input[type="file"] {
 
   .coupon-card,
   .coupon-box {
+    grid-template-columns: 1fr;
+  }
+
+  .options-editor-head,
+  .option-group-title,
+  .compact-grid {
     grid-template-columns: 1fr;
   }
 }
