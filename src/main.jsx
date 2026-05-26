@@ -2112,10 +2112,15 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
   const groups = optionGroupsForProduct(product, store);
   const [selected, setSelected] = React.useState(() => initialSelectedOptions(groups));
   const [expandedOptions, setExpandedOptions] = React.useState({});
+  const [stepIndex, setStepIndex] = React.useState(0);
+  const steppedMode = usesSteppedProductBuilder(store);
+  const currentGroup = steppedMode ? groups[stepIndex] : null;
   const selectedOptionGroups = buildSelectedOptionGroups(groups, selected);
   const optionsPrice = calculateOptionsPrice(groups, selected);
   const finalPrice = Number(product.price || 0) + optionsPrice;
   const validation = validateSelectedOptions(groups, selected);
+  const stepValidation = currentGroup ? validateSelectedOptions([currentGroup], selected) : '';
+  const isLastStep = stepIndex >= groups.length - 1;
 
   const toggleOption = (group, option) => {
     setSelected((current) => {
@@ -2154,53 +2159,77 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
       borderPrice: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.price || 0
     });
   };
+  const nextStep = () => {
+    if (stepValidation) return;
+    setStepIndex((current) => Math.min(groups.length - 1, current + 1));
+  };
+  const previousStep = () => setStepIndex((current) => Math.max(0, current - 1));
+  const renderGroup = (group) => (
+    <div className={`pizza-choice-list ${steppedMode ? 'stepped-choice-list' : ''}`} key={group.id}>
+      {!steppedMode && <strong>{group.name} <small>{optionGroupRuleText(group)}</small></strong>}
+      {group.options.map((item) => (
+        <div className="option-choice" key={item.name}>
+          <label className="check-line">
+            <input
+              type={Number(group.max || 1) <= 1 ? 'radio' : 'checkbox'}
+              name={`group-${group.id}`}
+              checked={(selected[group.id] || []).includes(item.name)}
+              onChange={() => toggleOption(group, item)}
+            />
+            <button
+              type="button"
+              className="option-detail-button"
+              onClick={() => toggleOptionDetails(group, item)}
+              disabled={!item.description}
+              aria-expanded={Boolean(expandedOptions[`${group.id}:${item.name}`])}
+            >
+              <span>
+                <b>{item.name}</b>
+                {item.description && (steppedMode ? <small>{item.description}</small> : <small>Toque para ver ingredientes</small>)}
+                <em>{BRL.format(Number(item.price || 0))}</em>
+              </span>
+              {item.description && !steppedMode && (expandedOptions[`${group.id}:${item.name}`] ? <ChevronUp size={17} /> : <ChevronDown size={17} />)}
+            </button>
+          </label>
+          {item.description && !steppedMode && expandedOptions[`${group.id}:${item.name}`] && (
+            <p className="option-description">{item.description}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="overlay">
-      <form className="modal pizza-modal" onSubmit={submit}>
+      <form className={`modal pizza-modal ${steppedMode ? 'stepped-product-modal' : ''}`} onSubmit={submit}>
         <div className="modal-head">
-          <h2>{product.name}</h2>
+          <h2>{steppedMode && currentGroup ? stepTitle(currentGroup) : product.name}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
         {(product.pizzaSize || product.slices) && (
           <p className="pizza-summary">{[product.pizzaSize, product.slices ? `${product.slices} fatias` : ''].filter(Boolean).join(' - ')}</p>
         )}
-        {groups.map((group) => (
-          <div className="pizza-choice-list" key={group.id}>
-            <strong>{group.name} <small>{optionGroupRuleText(group)}</small></strong>
-            {group.options.map((item) => (
-              <div className="option-choice" key={item.name}>
-                <label className="check-line">
-                  <input
-                    type={Number(group.max || 1) <= 1 ? 'radio' : 'checkbox'}
-                    name={`group-${group.id}`}
-                    checked={(selected[group.id] || []).includes(item.name)}
-                    onChange={() => toggleOption(group, item)}
-                  />
-                  <button
-                    type="button"
-                    className="option-detail-button"
-                    onClick={() => toggleOptionDetails(group, item)}
-                    disabled={!item.description}
-                    aria-expanded={Boolean(expandedOptions[`${group.id}:${item.name}`])}
-                  >
-                    <span>
-                      <b>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</b>
-                      {item.description && <small>Toque para ver ingredientes</small>}
-                    </span>
-                    {item.description && (expandedOptions[`${group.id}:${item.name}`] ? <ChevronUp size={17} /> : <ChevronDown size={17} />)}
-                  </button>
-                </label>
-                {item.description && expandedOptions[`${group.id}:${item.name}`] && (
-                  <p className="option-description">{item.description}</p>
-                )}
-              </div>
-            ))}
+        {steppedMode && groups.length > 1 && (
+          <div className="step-progress">
+            <span>Etapa {stepIndex + 1} de {groups.length}</span>
+            <div><i style={{ width: `${((stepIndex + 1) / groups.length) * 100}%` }} /></div>
           </div>
-        ))}
-        {validation && <p className="checkout-warning">{validation}</p>}
+        )}
+        {steppedMode && currentGroup ? renderGroup(currentGroup) : groups.map(renderGroup)}
+        {(steppedMode ? stepValidation : validation) && <p className="checkout-warning">{steppedMode ? stepValidation : validation}</p>}
         <div className="pizza-total"><span>Total</span><strong>{BRL.format(finalPrice)}</strong></div>
-        <button className="orange-button" type="submit" disabled={Boolean(validation)}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+        {steppedMode ? (
+          <div className="step-actions">
+            <button className="ghost-button" type="button" onClick={previousStep} disabled={stepIndex === 0}>Voltar etapa</button>
+            {isLastStep ? (
+              <button className="orange-button" type="submit" disabled={Boolean(validation)}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+            ) : (
+              <button className="orange-button" type="button" onClick={nextStep} disabled={Boolean(stepValidation)}>Proxima etapa</button>
+            )}
+          </div>
+        ) : (
+          <button className="orange-button" type="submit" disabled={Boolean(validation)}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+        )}
       </form>
     </div>
   );
@@ -2943,6 +2972,22 @@ function validateSelectedOptions(groups, selected) {
     if (count > Number(group.max || 1)) return `Escolha no maximo ${group.max} opcoes em ${group.name}.`;
   }
   return '';
+}
+
+function usesSteppedProductBuilder(store) {
+  return ['pizzaria', 'lanchonete', 'hamburgueria', 'restaurante'].includes(normalizeText(store?.segment || store?.type));
+}
+
+function stepTitle(group) {
+  const max = Number(group.max || 1);
+  const name = String(group.name || 'opcao').toUpperCase();
+  if (max === 1) return `ESCOLHA 1 ${singularizeOptionName(name)}`;
+  return `ESCOLHA ${max} ${name}`;
+}
+
+function singularizeOptionName(value) {
+  if (value.endsWith('S')) return value.slice(0, -1);
+  return value;
 }
 
 function optionGroupRuleText(group) {

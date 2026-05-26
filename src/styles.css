@@ -1660,6 +1660,58 @@ input[type="file"] {
   width: 100%;
 }
 
+.stepped-product-modal {
+  width: min(640px, 100%);
+  padding: 0;
+  overflow: hidden;
+}
+
+.stepped-product-modal .modal-head {
+  min-height: 74px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.stepped-product-modal .modal-head h2 {
+  font-size: 30px;
+  text-transform: uppercase;
+}
+
+.stepped-product-modal .pizza-summary,
+.stepped-product-modal .step-progress,
+.stepped-product-modal .pizza-choice-list,
+.stepped-product-modal .checkout-warning,
+.stepped-product-modal .pizza-total {
+  margin-left: 18px;
+  margin-right: 18px;
+}
+
+.step-progress {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.step-progress span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.step-progress div {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.step-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+}
+
 .pizza-choice-list {
   display: grid;
   gap: 8px;
@@ -1678,6 +1730,32 @@ input[type="file"] {
 .option-choice {
   display: grid;
   gap: 6px;
+}
+
+.stepped-choice-list {
+  max-height: min(54vh, 520px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.stepped-choice-list .option-choice {
+  min-height: 98px;
+  padding: 14px 16px;
+  border: 1px solid #9ca3af;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.stepped-choice-list .check-line {
+  align-items: center;
+  gap: 14px;
+}
+
+.stepped-choice-list .check-line input {
+  order: 2;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
 }
 
 .option-detail-button {
@@ -1708,6 +1786,12 @@ input[type="file"] {
   color: var(--text);
 }
 
+.option-detail-button em {
+  color: var(--text);
+  font-style: normal;
+  font-weight: 800;
+}
+
 .option-detail-button small,
 .option-description {
   color: var(--muted);
@@ -1736,6 +1820,29 @@ input[type="file"] {
   background: #fff7ed;
   color: #9a3412;
   font-weight: 900;
+}
+
+.step-actions {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.step-actions .ghost-button,
+.step-actions .orange-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 52px;
+}
+
+.step-actions .orange-button {
+  background: #22c55e;
+  box-shadow: none;
 }
 
 .checkout-summary {
