@@ -1188,7 +1188,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
           ))}
         </section>
       )}
-      {editing && <ProductModal product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
+      {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
       {importing && <PdfImportModal importProducts={importProducts} onClose={() => setImporting(false)} />}
     </>
   );
@@ -1231,13 +1231,14 @@ function ProductThumb({ product }) {
   );
 }
 
-function ProductModal({ product, onSave, onClose }) {
+function ProductModal({ store, product, onSave, onClose }) {
   const [draft, setDraft] = React.useState(product);
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  const isPizza = store?.segment === 'pizzaria';
 
   return (
     <div className="overlay">
-      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, price: Number(draft.price), stock: Number(draft.stock) }); }}>
+      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, price: Number(draft.price), stock: Number(draft.stock), slices: Number(draft.slices || 0), flavors: parseOptionLines(draft.flavorsText || draft.flavors), borders: parseOptionLines(draft.bordersText || draft.borders) }); }}>
         <div className="modal-head">
           <h2>{draft.id ? 'Editar produto' : 'Novo produto'}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
@@ -1250,6 +1251,17 @@ function ProductModal({ product, onSave, onClose }) {
         <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
         <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
         <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
+        {isPizza && (
+          <section className="segment-options">
+            <strong>Opcoes de pizzaria</strong>
+            <div className="form-grid">
+              <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>
+              <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Media, Grande" /></label>
+            </div>
+            <label>Sabores disponiveis<textarea value={optionLinesToText(draft.flavorsText ?? draft.flavors)} onChange={(event) => setField('flavorsText', event.target.value)} placeholder="Um sabor por linha. Ex: Calabresa&#10;Mussarela&#10;Frango com catupiry" /></label>
+            <label>Bordas disponiveis<textarea value={optionLinesToText(draft.bordersText ?? draft.borders)} onChange={(event) => setField('bordersText', event.target.value)} placeholder="Uma borda por linha. Ex: Sem borda&#10;Catupiry&#10;Cheddar" /></label>
+          </section>
+        )}
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
         <label className="check-line"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => setField('featured', event.target.checked)} /> Mostrar em destaque no catalogo</label>
         <label className="check-line"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setField('active', event.target.checked)} /> Produto disponivel para venda</label>
@@ -1504,6 +1516,7 @@ function ThermalTicket({ store, order }) {
             <span>{item.qty}x {item.name}</span>
             <strong>{BRL.format(item.qty * item.price)}</strong>
           </div>
+          {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
           {item.notes && <small>Obs item: {item.notes}</small>}
         </div>
       ))}
@@ -1580,10 +1593,24 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [deliveryLocation, setDeliveryLocation] = React.useState(null);
   const [orderStatus, setOrderStatus] = React.useState('');
   const [sendingOrder, setSendingOrder] = React.useState(false);
+  const [customizingProduct, setCustomizingProduct] = React.useState(null);
   const activeProducts = products.filter((product) => product.active && product.name.toLowerCase().includes(query.toLowerCase()));
-  const items = Object.entries(cart).map(([id, qty]) => {
-    const product = products.find((item) => item.id === id);
-    return product ? { productId: id, name: product.name, price: product.price, qty, notes: productNotes[id] || '' } : null;
+  const items = Object.entries(cart).map(([key, entry]) => {
+    const productId = cartEntryProductId(key, entry);
+    const product = products.find((item) => item.id === productId);
+    const qty = cartEntryQty(entry);
+    return product ? {
+      cartKey: key,
+      productId,
+      name: product.name,
+      price: product.price,
+      qty,
+      notes: productNotes[key] || '',
+      flavor: entry?.flavor || '',
+      border: entry?.border || '',
+      slices: product.slices || 0,
+      pizzaSize: product.pizzaSize || ''
+    } : null;
   }).filter(Boolean);
   const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
   const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
@@ -1597,10 +1624,33 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const catalogCategories = groupProductsByCategory(activeProducts, store.categoryOrder);
   const featuredProducts = sortProductsForCatalog(activeProducts.filter((product) => product.featured || product.promo)).slice(0, 12);
 
-  const add = (id) => setCart((current) => ({ ...current, [id]: (current[id] || 0) + 1 }));
-  const remove = (id) => setCart((current) => {
-    const next = { ...current, [id]: (current[id] || 0) - 1 };
-    if (next[id] <= 0) delete next[id];
+  const addProduct = (product) => {
+    if (isPizzaProduct(store, product)) {
+      setCustomizingProduct(product);
+      return;
+    }
+
+    addConfiguredProduct(product, {});
+  };
+  const addConfiguredProduct = (product, options) => {
+    const key = cartKey(product.id, options);
+    setCart((current) => {
+      const currentEntry = current[key];
+      const qty = cartEntryQty(currentEntry) + 1;
+      return {
+        ...current,
+        [key]: { productId: product.id, qty, flavor: options.flavor || '', border: options.border || '' }
+      };
+    });
+  };
+  const removeProduct = (product) => setCart((current) => {
+    const key = Object.keys(current).reverse().find((itemKey) => cartEntryProductId(itemKey, current[itemKey]) === product.id);
+    if (!key) return current;
+    const entry = current[key];
+    const qty = cartEntryQty(entry) - 1;
+    const next = { ...current };
+    if (qty <= 0) delete next[key];
+    else next[key] = typeof entry === 'number' ? qty : { ...entry, qty };
     return next;
   });
   const updateItemNote = (id, value) => setProductNotes((current) => ({ ...current, [id]: value }));
@@ -1753,7 +1803,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               </div>
               <div className="cart-summary-items">
                 {items.length ? items.slice(0, 3).map((item) => (
-                  <span key={item.productId}>{item.qty}x {item.name}</span>
+                  <span key={item.cartKey || item.productId}>{item.qty}x {item.name}</span>
                 )) : <span>Selecione os produtos abaixo.</span>}
                 {items.length > 3 && <span>+{items.length - 3} itens</span>}
               </div>
@@ -1785,9 +1835,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                             <strong>{BRL.format(product.price)}</strong>
                           </div>
                           <div className="stepper">
-                            <button onClick={() => remove(product.id)}>-</button>
-                            <b>{cart[product.id] || 0}</b>
-                            <button onClick={() => add(product.id)}>+</button>
+                            <button onClick={() => removeProduct(product)}>-</button>
+                            <b>{productCartQty(cart, product.id)}</b>
+                            <button onClick={() => addProduct(product)}>+</button>
                           </div>
                         </article>
                       ))}
@@ -1810,9 +1860,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                             <strong>{BRL.format(product.price)}</strong>
                           </div>
                           <div className="stepper">
-                            <button onClick={() => remove(product.id)}>-</button>
-                            <b>{cart[product.id] || 0}</b>
-                            <button onClick={() => add(product.id)}>+</button>
+                            <button onClick={() => removeProduct(product)}>-</button>
+                            <b>{productCartQty(cart, product.id)}</b>
+                            <button onClick={() => addProduct(product)}>+</button>
                           </div>
                         </article>
                       ))}
@@ -1830,10 +1880,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               <h2>Finalizar pedido</h2>
             </div>
             {items.length ? items.map((item) => (
-              <div className="cart-line item-note-line" key={item.productId}>
+              <div className="cart-line item-note-line" key={item.cartKey || item.productId}>
                 <div>
                   <span>{item.qty}x {item.name}</span>
-                  <input value={productNotes[item.productId] || ''} onChange={(event) => updateItemNote(item.productId, event.target.value)} placeholder="Observacao deste item" />
+                  {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
+                  <input value={productNotes[item.cartKey || item.productId] || ''} onChange={(event) => updateItemNote(item.cartKey || item.productId, event.target.value)} placeholder="Observacao deste item" />
                 </div>
                 <strong>{BRL.format(item.qty * item.price)}</strong>
               </div>
@@ -1905,7 +1956,54 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
           </form>
         )}
       </section>
+      {customizingProduct && (
+        <PizzaCustomizeModal
+          product={customizingProduct}
+          onClose={() => setCustomizingProduct(null)}
+          onAdd={(options) => {
+            addConfiguredProduct(customizingProduct, options);
+            setCustomizingProduct(null);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function PizzaCustomizeModal({ product, onAdd, onClose }) {
+  const flavors = parseOptionLines(product.flavors);
+  const borders = parseOptionLines(product.borders);
+  const [flavor, setFlavor] = React.useState(flavors[0] || '');
+  const [border, setBorder] = React.useState(borders[0] || '');
+
+  const submit = (event) => {
+    event.preventDefault();
+    onAdd({ flavor, border });
+  };
+
+  return (
+    <div className="overlay">
+      <form className="modal pizza-modal" onSubmit={submit}>
+        <div className="modal-head">
+          <h2>{product.name}</h2>
+          <button type="button" onClick={onClose}><X size={20} /></button>
+        </div>
+        {(product.pizzaSize || product.slices) && (
+          <p className="pizza-summary">{[product.pizzaSize, product.slices ? `${product.slices} fatias` : ''].filter(Boolean).join(' - ')}</p>
+        )}
+        {flavors.length > 0 && (
+          <label>Sabor<select value={flavor} onChange={(event) => setFlavor(event.target.value)} required>
+            {flavors.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select></label>
+        )}
+        {borders.length > 0 && (
+          <label>Borda<select value={border} onChange={(event) => setBorder(event.target.value)}>
+            {borders.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select></label>
+        )}
+        <button className="orange-button" type="submit"><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+      </form>
+    </div>
   );
 }
 
@@ -2301,7 +2399,7 @@ function buildCustomerStatusWhatsapp(order) {
 
 function buildStoreOrderWhatsapp(store, order) {
   const trackingUrl = `${window.location.origin}/pedido/${order.id}${store.catalogSlug ? `?slug=${encodeURIComponent(store.catalogSlug)}` : ''}`;
-  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}${item.notes ? `\n  Obs: ${item.notes}` : ''}`).join('\n');
+  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}${formatItemOptions(item) ? `\n  ${formatItemOptions(item)}` : ''}${item.notes ? `\n  Obs: ${item.notes}` : ''}`).join('\n');
   const message = [
     `Novo pedido #${order.id}`,
     `Cliente: ${order.customer}`,
@@ -2451,6 +2549,47 @@ function parseDeliveryZones(value) {
 
 function deliveryZonesToText(zones) {
   return Array.isArray(zones) ? zones.map((zone) => `${zone.name}=${Number(zone.fee || 0)}`).join('\n') : '';
+}
+
+function parseOptionLines(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function optionLinesToText(value) {
+  return parseOptionLines(value).join('\n');
+}
+
+function isPizzaProduct(store, product) {
+  return store?.segment === 'pizzaria' && (parseOptionLines(product.flavors).length > 0 || parseOptionLines(product.borders).length > 0 || product.slices || product.pizzaSize);
+}
+
+function cartKey(productId, options = {}) {
+  return [productId, options.flavor || '', options.border || ''].map((part) => encodeURIComponent(part)).join('::');
+}
+
+function cartEntryProductId(key, entry) {
+  if (entry && typeof entry === 'object') return entry.productId;
+  return decodeURIComponent(String(key).split('::')[0] || key);
+}
+
+function cartEntryQty(entry) {
+  return typeof entry === 'number' ? entry : Number(entry?.qty || 0);
+}
+
+function productCartQty(cart, productId) {
+  return Object.entries(cart).reduce((sum, [key, entry]) => (
+    cartEntryProductId(key, entry) === productId ? sum + cartEntryQty(entry) : sum
+  ), 0);
+}
+
+function formatItemOptions(item) {
+  return [
+    item.pizzaSize,
+    item.slices ? `${item.slices} fatias` : '',
+    item.flavor ? `Sabor: ${item.flavor}` : '',
+    item.border ? `Borda: ${item.border}` : ''
+  ].filter(Boolean).join(' | ');
 }
 
 function storeOpenInfo(store) {

@@ -1095,6 +1095,20 @@ input[type="file"] {
   font-weight: 700;
 }
 
+.segment-options {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.segment-options > strong {
+  color: #1e3a8a;
+}
+
 .form-status {
   color: #405069;
   background: #f8fafc;
@@ -1541,6 +1555,16 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0 10px;
+}
+
+.item-note-line small,
+.pizza-summary {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.pizza-modal .orange-button {
+  width: 100%;
 }
 
 .checkout-summary {
