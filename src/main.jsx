@@ -1092,6 +1092,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     category,
     sortProductsForCatalog(products.filter((product) => (product.category || 'Sem categoria') === category))
   ]);
+  const productTabs = store.segment === 'pizzaria' ? ['Produtos', 'Categorias', 'Opcoes de Pizza'] : ['Produtos', 'Categorias'];
   const savePizzaOptions = async (field, value) => {
     await setStore({ ...store, [field]: parsePricedOptions(value) });
   };
@@ -1133,7 +1134,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
         </select>
       </PageHeader>
       <div className="tabs">
-        {['Produtos', 'Categorias'].map((item) => (
+        {productTabs.map((item) => (
           <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
@@ -1178,7 +1179,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             ))}
           </div>
         </>
-      ) : (
+      ) : tab === 'Categorias' ? (
         <>
           <section className="category-list">
             {categories.map((category, index) => (
@@ -1193,14 +1194,13 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
               </article>
             ))}
           </section>
-          {store.segment === 'pizzaria' && (
-            <PizzaOptionsPanel
-              store={store}
-              onSaveFlavors={(value) => savePizzaOptions('pizzaFlavors', value)}
-              onSaveBorders={(value) => savePizzaOptions('pizzaBorders', value)}
-            />
-          )}
         </>
+      ) : (
+        <PizzaOptionsPanel
+          store={store}
+          onSaveFlavors={(value) => savePizzaOptions('pizzaFlavors', value)}
+          onSaveBorders={(value) => savePizzaOptions('pizzaBorders', value)}
+        />
       )}
       {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
       {importing && <PdfImportModal importProducts={importProducts} onClose={() => setImporting(false)} />}
