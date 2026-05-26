@@ -2146,6 +2146,14 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
     const key = `${group.id}:${option.name}`;
     setExpandedOptions((current) => ({ ...current, [key]: !current[key] }));
   };
+  const handleOptionButtonClick = (event, group, option) => {
+    event.preventDefault();
+    if (steppedMode) {
+      toggleOption(group, option);
+      return;
+    }
+    toggleOptionDetails(group, option);
+  };
 
   const submit = (event) => {
     event.preventDefault();
@@ -2183,8 +2191,8 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
             <button
               type="button"
               className="option-detail-button"
-              onClick={() => toggleOptionDetails(group, item)}
-              disabled={!item.description}
+              onClick={(event) => handleOptionButtonClick(event, group, item)}
+              disabled={!steppedMode && !item.description}
               aria-expanded={Boolean(expandedOptions[`${group.id}:${item.name}`])}
             >
               <span>
@@ -2228,7 +2236,7 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
             {isLastStep ? (
               <button className="orange-button" type="submit" disabled={Boolean(validation)}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
             ) : (
-              <button className="orange-button" type="button" onClick={nextStep} disabled={Boolean(stepValidation)}>Proxima etapa</button>
+              <button className="orange-button" type="submit" disabled={Boolean(stepValidation)}>Proxima etapa</button>
             )}
           </div>
         ) : (
