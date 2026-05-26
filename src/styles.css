@@ -1453,6 +1453,32 @@ input[type="file"] {
   white-space: nowrap;
 }
 
+.catalog-tabbar {
+  display: inline-flex;
+  gap: 4px;
+  justify-self: start;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.catalog-tabbar button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  padding: 0 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.catalog-tabbar .active {
+  background: #fff7ed;
+  color: var(--orange);
+}
+
 .order-history-panel {
   display: grid;
   gap: 10px;

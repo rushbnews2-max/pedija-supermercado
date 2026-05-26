@@ -1732,6 +1732,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const [sentOrder, setSentOrder] = React.useState(null);
   const [orderHistory, setOrderHistory] = React.useState(() => readOrderHistory(historyStorageKey));
   const [checkoutStep, setCheckoutStep] = React.useState('products');
+  const [catalogTab, setCatalogTab] = React.useState('products');
   const [couponCode, setCouponCode] = React.useState('');
   const [appliedCoupon, setAppliedCoupon] = React.useState(null);
   const [couponMessage, setCouponMessage] = React.useState('');
@@ -1856,6 +1857,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 
     setCart(nextCart);
     setProductNotes(nextNotes);
+    setCatalogTab('products');
     setCheckoutStep('products');
     setCartMessage('Pedido anterior carregado no carrinho.');
   };
@@ -2041,6 +2043,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               </button>
             </section>
             {orderHistory.length > 0 && (
+              <div className="catalog-tabbar">
+                <button className={catalogTab === 'products' ? 'active' : ''} type="button" onClick={() => setCatalogTab('products')}>Produtos</button>
+                <button className={catalogTab === 'history' ? 'active' : ''} type="button" onClick={() => setCatalogTab('history')}>Meus pedidos</button>
+              </div>
+            )}
+
+            {catalogTab === 'history' ? (
               <section className="order-history-panel">
                 <div className="order-history-head">
                   <div>
@@ -2049,7 +2058,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                   </div>
                 </div>
                 <div className="order-history-list">
-                  {orderHistory.slice(0, 4).map((order) => (
+                  {orderHistory.map((order) => (
                     <article key={`${order.id}-${order.savedAt}`}>
                       <div>
                         <strong>Pedido #{order.id}</strong>
@@ -2061,8 +2070,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                   ))}
                 </div>
               </section>
-            )}
-
+            ) : (
             <div className="catalog-products">
               <div className="search-box">
                 <Search size={18} />
@@ -2122,6 +2130,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 {!catalogCategories.length && <p className="empty">Nenhum produto encontrado.</p>}
               </div>
             </div>
+            )}
           </>
         ) : (
           <form className="cart-panel checkout-panel" onSubmit={submitOrder}>
