@@ -2097,6 +2097,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 function ProductCustomizeModal({ store, product, onAdd, onClose }) {
   const groups = optionGroupsForProduct(product, store);
   const [selected, setSelected] = React.useState(() => initialSelectedOptions(groups));
+  const [expandedOptions, setExpandedOptions] = React.useState({});
   const selectedOptionGroups = buildSelectedOptionGroups(groups, selected);
   const optionsPrice = calculateOptionsPrice(groups, selected);
   const finalPrice = Number(product.price || 0) + optionsPrice;
@@ -2120,6 +2121,11 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
 
       return { ...current, [group.id]: [...currentNames, option.name] };
     });
+  };
+  const toggleOptionDetails = (group, option) => {
+    if (!option.description) return;
+    const key = `${group.id}:${option.name}`;
+    setExpandedOptions((current) => ({ ...current, [key]: !current[key] }));
   };
 
   const submit = (event) => {
@@ -2149,18 +2155,32 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
           <div className="pizza-choice-list" key={group.id}>
             <strong>{group.name} <small>{optionGroupRuleText(group)}</small></strong>
             {group.options.map((item) => (
-              <label className="check-line" key={item.name}>
-                <input
-                  type={Number(group.max || 1) <= 1 ? 'radio' : 'checkbox'}
-                  name={`group-${group.id}`}
-                  checked={(selected[group.id] || []).includes(item.name)}
-                  onChange={() => toggleOption(group, item)}
-                />
-                <span>
-                  <b>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</b>
-                  {item.description && <small>{item.description}</small>}
-                </span>
-              </label>
+              <div className="option-choice" key={item.name}>
+                <label className="check-line">
+                  <input
+                    type={Number(group.max || 1) <= 1 ? 'radio' : 'checkbox'}
+                    name={`group-${group.id}`}
+                    checked={(selected[group.id] || []).includes(item.name)}
+                    onChange={() => toggleOption(group, item)}
+                  />
+                  <button
+                    type="button"
+                    className="option-detail-button"
+                    onClick={() => toggleOptionDetails(group, item)}
+                    disabled={!item.description}
+                    aria-expanded={Boolean(expandedOptions[`${group.id}:${item.name}`])}
+                  >
+                    <span>
+                      <b>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</b>
+                      {item.description && <small>Toque para ver ingredientes</small>}
+                    </span>
+                    {item.description && (expandedOptions[`${group.id}:${item.name}`] ? <ChevronUp size={17} /> : <ChevronDown size={17} />)}
+                  </button>
+                </label>
+                {item.description && expandedOptions[`${group.id}:${item.name}`] && (
+                  <p className="option-description">{item.description}</p>
+                )}
+              </div>
             ))}
           </div>
         ))}

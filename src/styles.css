@@ -1675,19 +1675,54 @@ input[type="file"] {
   margin-bottom: 0;
 }
 
-.pizza-choice-list .check-line span {
+.option-choice {
   display: grid;
-  gap: 3px;
+  gap: 6px;
 }
 
-.pizza-choice-list .check-line b {
+.option-detail-button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-detail-button:disabled {
+  cursor: default;
+}
+
+.option-detail-button span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.option-detail-button b {
   color: var(--text);
 }
 
-.pizza-choice-list .check-line small {
+.option-detail-button small,
+.option-description {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.option-description {
+  margin: -2px 0 4px 30px;
+  padding: 8px 10px;
+  border-left: 3px solid #fb923c;
+  border-radius: 0 8px 8px 0;
+  background: #fff7ed;
+  color: #7c2d12;
+  font-weight: 800;
 }
 
 .pizza-total {
