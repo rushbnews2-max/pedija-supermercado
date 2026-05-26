@@ -586,6 +586,7 @@ function normalizePricedOptions(options) {
   return options
     .map((option) => ({
       name: String(option.name || '').trim(),
+      description: String(option.description || '').trim(),
       price: Number(option.price || 0)
     }))
     .filter((option) => option.name);

@@ -1365,7 +1365,8 @@ function ProductModal({ store, product, onSave, onClose }) {
                     <option value="free">Nao cobrar</option>
                   </select></label>
                 </div>
-                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa=0&#10;Frango com catupiry=5&#10;Cheddar=7" /></label>
+                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa | Molho, mussarela, milho e cebola=0&#10;Frango com catupiry | Molho, frango, catupiry e milho=5&#10;Cheddar=7" /></label>
+                <small className="option-format-help">Formato: nome | ingredientes = acrescimo. A descricao e opcional.</small>
               </article>
             ))}
             {!normalizeOptionGroups(draft.optionGroups).length && <p className="empty">Clique em Grupo ou escolha um modelo para cadastrar sabores, bordas e adicionais.</p>}
@@ -2155,7 +2156,10 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
                   checked={(selected[group.id] || []).includes(item.name)}
                   onChange={() => toggleOption(group, item)}
                 />
-                <span>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</span>
+                <span>
+                  <b>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</b>
+                  {item.description && <small>{item.description}</small>}
+                </span>
               </label>
             ))}
           </div>
@@ -2725,7 +2729,7 @@ function parsePricedOptions(value) {
   if (Array.isArray(value)) {
     return value.map((item) => typeof item === 'string'
       ? parsePricedOptionLine(item)
-      : { name: String(item?.name || '').trim(), price: Number(item?.price || 0) }).filter((item) => item.name);
+      : { name: String(item?.name || '').trim(), description: String(item?.description || '').trim(), price: Number(item?.price || 0) }).filter((item) => item.name);
   }
 
   return String(value || '')
@@ -2735,12 +2739,17 @@ function parsePricedOptions(value) {
 }
 
 function parsePricedOptionLine(line) {
-  const [name, price = '0'] = String(line || '').split('=');
-  return { name: String(name || '').trim(), price: Number(String(price).replace(',', '.') || 0) };
+  const [nameAndDescription, price = '0'] = String(line || '').split('=');
+  const [name, ...descriptionParts] = String(nameAndDescription || '').split('|');
+  return {
+    name: String(name || '').trim(),
+    description: descriptionParts.join('|').trim(),
+    price: Number(String(price).replace(',', '.') || 0)
+  };
 }
 
 function pricedOptionsToText(value) {
-  return parsePricedOptions(value).map((item) => `${item.name}=${Number(item.price || 0)}`).join('\n');
+  return parsePricedOptions(value).map((item) => `${item.name}${item.description ? ` | ${item.description}` : ''}=${Number(item.price || 0)}`).join('\n');
 }
 
 function isConfigurableProduct(product) {
@@ -2787,7 +2796,7 @@ function prepareOptionGroupsForSave(groups) {
 function presetOptionGroups(type) {
   const presets = {
     pizza: [
-      { name: 'Sabores', min: 1, max: 2, pricing: 'highest', optionsText: 'Mussarela=0\nCalabresa=0\nFrango com catupiry=5' },
+      { name: 'Sabores', min: 1, max: 2, pricing: 'highest', optionsText: 'Mussarela | Molho, mussarela e oregano=0\nCalabresa | Molho, mussarela, calabresa, milho e cebola=0\nFrango com catupiry | Molho, mussarela, frango, catupiry e milho=5' },
       { name: 'Borda', min: 0, max: 1, pricing: 'sum', optionsText: 'Sem borda=0\nCatupiry=6\nCheddar=7' }
     ],
     snack: [
@@ -2919,7 +2928,7 @@ function formatItemOptions(item) {
       item.pizzaSize,
       item.slices ? `${item.slices} fatias` : '',
       ...item.optionGroups.map((group) => {
-        const names = group.options.map((option) => option.name).join(', ');
+        const names = group.options.map((option) => `${option.name}${option.description ? ` (${option.description})` : ''}`).join(', ');
         const price = Number(group.price || 0);
         return `${group.name}: ${names}${price > 0 ? ` (+ ${BRL.format(price)})` : ''}`;
       })

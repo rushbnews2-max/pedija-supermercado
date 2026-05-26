@@ -1158,6 +1158,11 @@ input[type="file"] {
   background: #fff;
 }
 
+.option-format-help {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .option-group-title {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1666,7 +1671,23 @@ input[type="file"] {
 }
 
 .pizza-choice-list .check-line {
+  align-items: flex-start;
   margin-bottom: 0;
+}
+
+.pizza-choice-list .check-line span {
+  display: grid;
+  gap: 3px;
+}
+
+.pizza-choice-list .check-line b {
+  color: var(--text);
+}
+
+.pizza-choice-list .check-line small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .pizza-total {
