@@ -194,7 +194,9 @@ const initialStore = {
   minOrder: 0,
   deliveryAreas: '',
   deliveryZones: [],
-  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios']
+  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios'],
+  pizzaFlavors: [],
+  pizzaBorders: []
 };
 
 function LogoMark({ store }) {
@@ -1090,6 +1092,9 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     category,
     sortProductsForCatalog(products.filter((product) => (product.category || 'Sem categoria') === category))
   ]);
+  const savePizzaOptions = async (field, value) => {
+    await setStore({ ...store, [field]: parsePricedOptions(value) });
+  };
 
   const saveProduct = (product) => {
     const categoryProducts = products.filter((item) => (item.category || 'Sem categoria') === (product.category || 'Sem categoria'));
@@ -1135,7 +1140,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
       {tab === 'Produtos' ? (
         <>
           <div className="product-toolbar">
-            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true })}>
+            <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true, productType: 'normal' })}>
               <Plus size={18} /> Novo Produto
             </button>
             <button className="ghost-button new-product" onClick={() => setImporting(true)}>
@@ -1174,19 +1179,28 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
           </div>
         </>
       ) : (
-        <section className="category-list">
-          {categories.map((category, index) => (
-            <article key={category}>
-              <Box size={18} />
-              <strong>{category}</strong>
-              <span>{products.filter((product) => product.category === category).length} produtos</span>
-              <div className="category-actions">
-                <button type="button" disabled={index === 0} onClick={() => moveCategory(category, 'up')} aria-label={`Subir categoria ${category}`}><ChevronUp size={16} /> Subir</button>
-                <button type="button" disabled={index === categories.length - 1} onClick={() => moveCategory(category, 'down')} aria-label={`Descer categoria ${category}`}><ChevronDown size={16} /> Descer</button>
-              </div>
-            </article>
-          ))}
-        </section>
+        <>
+          <section className="category-list">
+            {categories.map((category, index) => (
+              <article key={category}>
+                <Box size={18} />
+                <strong>{category}</strong>
+                <span>{products.filter((product) => product.category === category).length} produtos</span>
+                <div className="category-actions">
+                  <button type="button" disabled={index === 0} onClick={() => moveCategory(category, 'up')} aria-label={`Subir categoria ${category}`}><ChevronUp size={16} /> Subir</button>
+                  <button type="button" disabled={index === categories.length - 1} onClick={() => moveCategory(category, 'down')} aria-label={`Descer categoria ${category}`}><ChevronDown size={16} /> Descer</button>
+                </div>
+              </article>
+            ))}
+          </section>
+          {store.segment === 'pizzaria' && (
+            <PizzaOptionsPanel
+              store={store}
+              onSaveFlavors={(value) => savePizzaOptions('pizzaFlavors', value)}
+              onSaveBorders={(value) => savePizzaOptions('pizzaBorders', value)}
+            />
+          )}
+        </>
       )}
       {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
       {importing && <PdfImportModal importProducts={importProducts} onClose={() => setImporting(false)} />}
@@ -1218,6 +1232,38 @@ function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMo
   );
 }
 
+function PizzaOptionsPanel({ store, onSaveFlavors, onSaveBorders }) {
+  const [flavorsText, setFlavorsText] = React.useState(pricedOptionsToText(store.pizzaFlavors));
+  const [bordersText, setBordersText] = React.useState(pricedOptionsToText(store.pizzaBorders));
+  const [status, setStatus] = React.useState('');
+
+  React.useEffect(() => {
+    setFlavorsText(pricedOptionsToText(store.pizzaFlavors));
+    setBordersText(pricedOptionsToText(store.pizzaBorders));
+  }, [store.pizzaFlavors, store.pizzaBorders]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    setStatus('Salvando opcoes...');
+    await onSaveFlavors(flavorsText);
+    await onSaveBorders(bordersText);
+    setStatus('Opcoes de pizza salvas.');
+  };
+
+  return (
+    <form className="pizza-options-panel" onSubmit={save}>
+      <h3>Opcoes de pizza</h3>
+      <p>Cadastre sabores e bordas uma vez. Depois, no produto, marque o tipo como Pizza.</p>
+      <div className="form-grid">
+        <label>Sabores<textarea value={flavorsText} onChange={(event) => setFlavorsText(event.target.value)} placeholder="Mussarela=0&#10;Calabresa=2&#10;Frango com catupiry=5" /></label>
+        <label>Bordas<textarea value={bordersText} onChange={(event) => setBordersText(event.target.value)} placeholder="Sem borda=0&#10;Catupiry=6&#10;Cheddar=7" /></label>
+      </div>
+      {status && <p className="form-status">{status}</p>}
+      <button className="orange-button" type="submit"><Check size={18} /> Salvar opcoes de pizza</button>
+    </form>
+  );
+}
+
 function ProductThumb({ product }) {
   if (product.image) {
     return <img className="product-thumb" src={product.image} alt={product.name} />;
@@ -1238,7 +1284,7 @@ function ProductModal({ store, product, onSave, onClose }) {
 
   return (
     <div className="overlay">
-      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, price: Number(draft.price), stock: Number(draft.stock), slices: Number(draft.slices || 0), flavors: parseOptionLines(draft.flavorsText || draft.flavors), borders: parseOptionLines(draft.bordersText || draft.borders) }); }}>
+      <form className="modal" onSubmit={(event) => { event.preventDefault(); onSave({ ...draft, price: Number(draft.price), stock: Number(draft.stock), slices: Number(draft.slices || 0), maxFlavors: Number(draft.maxFlavors || 1), productType: draft.productType || 'normal' }); }}>
         <div className="modal-head">
           <h2>{draft.id ? 'Editar produto' : 'Novo produto'}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
@@ -1250,16 +1296,21 @@ function ProductModal({ store, product, onSave, onClose }) {
         </div>
         <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
         <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
-        <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
         {isPizza && (
+          <label>Tipo do produto<select value={draft.productType || 'normal'} onChange={(event) => setField('productType', event.target.value)}>
+            <option value="normal">Produto normal</option>
+            <option value="pizza">Pizza</option>
+          </select></label>
+        )}
+        <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
+        {isPizza && (draft.productType || 'normal') === 'pizza' && (
           <section className="segment-options">
-            <strong>Opcoes de pizzaria</strong>
+            <strong>Configuracao desta pizza</strong>
             <div className="form-grid">
               <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>
               <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Media, Grande" /></label>
             </div>
-            <label>Sabores disponiveis<textarea value={optionLinesToText(draft.flavorsText ?? draft.flavors)} onChange={(event) => setField('flavorsText', event.target.value)} placeholder="Um sabor por linha. Ex: Calabresa&#10;Mussarela&#10;Frango com catupiry" /></label>
-            <label>Bordas disponiveis<textarea value={optionLinesToText(draft.bordersText ?? draft.borders)} onChange={(event) => setField('bordersText', event.target.value)} placeholder="Uma borda por linha. Ex: Sem borda&#10;Catupiry&#10;Cheddar" /></label>
+            <label>Maximo de sabores<input type="number" min="1" value={draft.maxFlavors || 1} onChange={(event) => setField('maxFlavors', event.target.value)} /></label>
           </section>
         )}
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
@@ -1514,7 +1565,7 @@ function ThermalTicket({ store, order }) {
         <div className="ticket-item" key={`${item.productId}-${item.name}`}>
           <div className="ticket-line">
             <span>{item.qty}x {item.name}</span>
-            <strong>{BRL.format(item.qty * item.price)}</strong>
+            <strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong>
           </div>
           {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
           {item.notes && <small>Obs item: {item.notes}</small>}
@@ -1606,13 +1657,15 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       price: product.price,
       qty,
       notes: productNotes[key] || '',
-      flavor: entry?.flavor || '',
+      flavors: Array.isArray(entry?.flavors) ? entry.flavors : [],
       border: entry?.border || '',
-      slices: product.slices || 0,
+      borderPrice: Number(entry?.borderPrice || 0),
+      flavorPrice: Number(entry?.flavorPrice || 0),
+      slices: product.productType === 'pizza' ? product.slices || 0 : 0,
       pizzaSize: product.pizzaSize || ''
     } : null;
   }).filter(Boolean);
-  const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.qty * itemUnitPrice(item), 0);
   const discount = appliedCoupon ? couponDiscount(appliedCoupon, subtotal) : 0;
   const deliveryZones = Array.isArray(store.deliveryZones) ? store.deliveryZones : [];
   const selectedZone = deliveryZones.find((zone) => zone.name === customer.deliveryNeighborhood);
@@ -1625,7 +1678,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const featuredProducts = sortProductsForCatalog(activeProducts.filter((product) => product.featured || product.promo)).slice(0, 12);
 
   const addProduct = (product) => {
-    if (isPizzaProduct(store, product)) {
+    if (isPizzaProduct(product)) {
       setCustomizingProduct(product);
       return;
     }
@@ -1639,7 +1692,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       const qty = cartEntryQty(currentEntry) + 1;
       return {
         ...current,
-        [key]: { productId: product.id, qty, flavor: options.flavor || '', border: options.border || '' }
+        [key]: { productId: product.id, qty, flavors: options.flavors || [], border: options.border || '', flavorPrice: Number(options.flavorPrice || 0), borderPrice: Number(options.borderPrice || 0) }
       };
     });
   };
@@ -1886,7 +1939,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                   {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
                   <input value={productNotes[item.cartKey || item.productId] || ''} onChange={(event) => updateItemNote(item.cartKey || item.productId, event.target.value)} placeholder="Observacao deste item" />
                 </div>
-                <strong>{BRL.format(item.qty * item.price)}</strong>
+                <strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong>
               </div>
             )) : <p className="empty">Escolha produtos no catalogo.</p>}
             <div className="checkout-summary">
@@ -1958,6 +2011,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
       </section>
       {customizingProduct && (
         <PizzaCustomizeModal
+          store={store}
           product={customizingProduct}
           onClose={() => setCustomizingProduct(null)}
           onAdd={(options) => {
@@ -1970,15 +2024,32 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   );
 }
 
-function PizzaCustomizeModal({ product, onAdd, onClose }) {
-  const flavors = parseOptionLines(product.flavors);
-  const borders = parseOptionLines(product.borders);
-  const [flavor, setFlavor] = React.useState(flavors[0] || '');
-  const [border, setBorder] = React.useState(borders[0] || '');
+function PizzaCustomizeModal({ store, product, onAdd, onClose }) {
+  const flavors = Array.isArray(store.pizzaFlavors) ? store.pizzaFlavors : [];
+  const borders = Array.isArray(store.pizzaBorders) ? store.pizzaBorders : [];
+  const maxFlavors = Math.max(1, Number(product.maxFlavors || 1));
+  const [selectedFlavors, setSelectedFlavors] = React.useState([]);
+  const [borderName, setBorderName] = React.useState(borders[0]?.name || '');
+  const flavorPrice = selectedFlavors.reduce((max, name) => {
+    const option = flavors.find((item) => item.name === name);
+    return Math.max(max, Number(option?.price || 0));
+  }, 0);
+  const border = borders.find((item) => item.name === borderName);
+  const borderPrice = Number(border?.price || 0);
+  const finalPrice = Number(product.price || 0) + flavorPrice + borderPrice;
+
+  const toggleFlavor = (name) => {
+    setSelectedFlavors((current) => {
+      if (current.includes(name)) return current.filter((item) => item !== name);
+      if (current.length >= maxFlavors) return [...current.slice(1), name];
+      return [...current, name];
+    });
+  };
 
   const submit = (event) => {
     event.preventDefault();
-    onAdd({ flavor, border });
+    if (!selectedFlavors.length && flavors.length) return;
+    onAdd({ flavors: selectedFlavors, border: borderName, flavorPrice, borderPrice });
   };
 
   return (
@@ -1992,16 +2063,23 @@ function PizzaCustomizeModal({ product, onAdd, onClose }) {
           <p className="pizza-summary">{[product.pizzaSize, product.slices ? `${product.slices} fatias` : ''].filter(Boolean).join(' - ')}</p>
         )}
         {flavors.length > 0 && (
-          <label>Sabor<select value={flavor} onChange={(event) => setFlavor(event.target.value)} required>
-            {flavors.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select></label>
+          <div className="pizza-choice-list">
+            <strong>Escolha ate {maxFlavors} sabor{maxFlavors > 1 ? 'es' : ''}</strong>
+            {flavors.map((item) => (
+              <label className="check-line" key={item.name}>
+                <input type="checkbox" checked={selectedFlavors.includes(item.name)} onChange={() => toggleFlavor(item.name)} />
+                <span>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</span>
+              </label>
+            ))}
+          </div>
         )}
         {borders.length > 0 && (
-          <label>Borda<select value={border} onChange={(event) => setBorder(event.target.value)}>
-            {borders.map((item) => <option key={item} value={item}>{item}</option>)}
+          <label>Borda<select value={borderName} onChange={(event) => setBorderName(event.target.value)}>
+            {borders.map((item) => <option key={item.name} value={item.name}>{item.name} {item.price > 0 ? `+ ${BRL.format(item.price)}` : ''}</option>)}
           </select></label>
         )}
-        <button className="orange-button" type="submit"><ShoppingBag size={18} /> Adicionar ao carrinho</button>
+        <div className="pizza-total"><span>Total</span><strong>{BRL.format(finalPrice)}</strong></div>
+        <button className="orange-button" type="submit" disabled={flavors.length > 0 && !selectedFlavors.length}><ShoppingBag size={18} /> Adicionar ao carrinho</button>
       </form>
     </div>
   );
@@ -2399,7 +2477,7 @@ function buildCustomerStatusWhatsapp(order) {
 
 function buildStoreOrderWhatsapp(store, order) {
   const trackingUrl = `${window.location.origin}/pedido/${order.id}${store.catalogSlug ? `?slug=${encodeURIComponent(store.catalogSlug)}` : ''}`;
-  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * item.price)}${formatItemOptions(item) ? `\n  ${formatItemOptions(item)}` : ''}${item.notes ? `\n  Obs: ${item.notes}` : ''}`).join('\n');
+  const items = order.items.map((item) => `${item.qty}x ${item.name} - ${BRL.format(item.qty * itemUnitPrice(item))}${formatItemOptions(item) ? `\n  ${formatItemOptions(item)}` : ''}${item.notes ? `\n  Obs: ${item.notes}` : ''}`).join('\n');
   const message = [
     `Novo pedido #${order.id}`,
     `Cliente: ${order.customer}`,
@@ -2488,8 +2566,12 @@ function whatsappDigits(value) {
 }
 
 function orderTotal(order) {
-  const subtotal = order.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const subtotal = order.items.reduce((sum, item) => sum + item.qty * itemUnitPrice(item), 0);
   return Math.max(0, subtotal - Number(order.discount || 0) + Number(order.deliveryFee || 0));
+}
+
+function itemUnitPrice(item) {
+  return Number(item.price || 0) + Number(item.flavorPrice || 0) + Number(item.borderPrice || 0);
 }
 
 function couponDiscount(coupon, subtotal) {
@@ -2556,16 +2638,34 @@ function parseOptionLines(value) {
   return String(value || '').split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
 }
 
-function optionLinesToText(value) {
-  return parseOptionLines(value).join('\n');
+function parsePricedOptions(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => typeof item === 'string'
+      ? parsePricedOptionLine(item)
+      : { name: String(item?.name || '').trim(), price: Number(item?.price || 0) }).filter((item) => item.name);
+  }
+
+  return String(value || '')
+    .split(/\r?\n/)
+    .map(parsePricedOptionLine)
+    .filter((item) => item.name);
 }
 
-function isPizzaProduct(store, product) {
-  return store?.segment === 'pizzaria' && (parseOptionLines(product.flavors).length > 0 || parseOptionLines(product.borders).length > 0 || product.slices || product.pizzaSize);
+function parsePricedOptionLine(line) {
+  const [name, price = '0'] = String(line || '').split('=');
+  return { name: String(name || '').trim(), price: Number(String(price).replace(',', '.') || 0) };
+}
+
+function pricedOptionsToText(value) {
+  return parsePricedOptions(value).map((item) => `${item.name}=${Number(item.price || 0)}`).join('\n');
+}
+
+function isPizzaProduct(product) {
+  return product?.productType === 'pizza';
 }
 
 function cartKey(productId, options = {}) {
-  return [productId, options.flavor || '', options.border || ''].map((part) => encodeURIComponent(part)).join('::');
+  return [productId, (options.flavors || []).join('+'), options.border || ''].map((part) => encodeURIComponent(part)).join('::');
 }
 
 function cartEntryProductId(key, entry) {
@@ -2587,8 +2687,10 @@ function formatItemOptions(item) {
   return [
     item.pizzaSize,
     item.slices ? `${item.slices} fatias` : '',
-    item.flavor ? `Sabor: ${item.flavor}` : '',
-    item.border ? `Borda: ${item.border}` : ''
+    item.flavors?.length ? `Sabores: ${item.flavors.join(', ')}` : item.flavor ? `Sabor: ${item.flavor}` : '',
+    item.flavorPrice > 0 ? `Adic. sabor: ${BRL.format(item.flavorPrice)}` : '',
+    item.border ? `Borda: ${item.border}` : '',
+    item.borderPrice > 0 ? `Adic. borda: ${BRL.format(item.borderPrice)}` : ''
   ].filter(Boolean).join(' | ');
 }
 

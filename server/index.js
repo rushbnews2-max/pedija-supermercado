@@ -266,7 +266,10 @@ app.post('/api/products', async (req, res) => {
     price: Number(req.body.price || 0),
     stock: Number(req.body.stock || 0),
     sortOrder: Number(req.body.sortOrder || Date.now()),
-    featured: Boolean(req.body.featured)
+    featured: Boolean(req.body.featured),
+    productType: req.body.productType || 'normal',
+    slices: Number(req.body.slices || 0),
+    maxFlavors: Number(req.body.maxFlavors || 1)
   };
 
   await updateDb((current) => updateScopedProducts(current, session, (products) => [product, ...products]));
@@ -295,7 +298,10 @@ app.post('/api/products/import', async (req, res) => {
         featured: false,
         active: true,
         stock: 0,
-        sortOrder: index + 1
+        sortOrder: index + 1,
+        productType: 'normal',
+        slices: 0,
+        maxFlavors: 1
       }));
     savedProducts = [...newProducts, ...scopedProducts];
 
@@ -316,7 +322,10 @@ app.put('/api/products/:id', async (req, res) => {
       price: Number(req.body.price || 0),
       stock: Number(req.body.stock || 0),
       sortOrder: Number(req.body.sortOrder || product.sortOrder || 0),
-      featured: Boolean(req.body.featured)
+      featured: Boolean(req.body.featured),
+      productType: req.body.productType || product.productType || 'normal',
+      slices: Number(req.body.slices || 0),
+      maxFlavors: Number(req.body.maxFlavors || product.maxFlavors || 1)
     };
     return saved;
   })));
@@ -485,6 +494,8 @@ function withPlatformDefaults(db) {
       segment: 'supermercado',
       deliveryZones: [],
       categoryOrder: [],
+      pizzaFlavors: [],
+      pizzaBorders: [],
       ...db.store
     },
     establishments: establishments.map((item) => normalizeEstablishment({
@@ -573,7 +584,9 @@ function establishmentToStore(establishment) {
     minOrder: 0,
     deliveryAreas: '',
     deliveryZones: [],
-    categoryOrder: []
+    categoryOrder: [],
+    pizzaFlavors: [],
+    pizzaBorders: []
   };
 }
 

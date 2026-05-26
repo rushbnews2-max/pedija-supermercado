@@ -24,7 +24,9 @@ const initialStore = {
   minOrder: 0,
   deliveryAreas: '',
   deliveryZones: [],
-  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios']
+  categoryOrder: ['Bebidas', 'Mercearia', 'Laticinios'],
+  pizzaFlavors: [],
+  pizzaBorders: []
 };
 
 const initialProducts = [
