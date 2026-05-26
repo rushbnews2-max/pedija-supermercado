@@ -999,7 +999,7 @@ function StoreModal({ store, onSave, onClose }) {
 
     try {
       setStatus('Preparando logo...');
-      const image = await resizeImageFile(file, { maxWidth: 512, maxHeight: 512, quality: 0.92, format: 'image/png' });
+      const image = await resizeImageFile(file, { maxWidth: 512, maxHeight: 512, quality: 0.9, format: 'image/png', maxBytes: 450000 });
       setField('logoUrl', image);
       setStatus('Logo pronto para salvar.');
     } catch {
@@ -1012,7 +1012,7 @@ function StoreModal({ store, onSave, onClose }) {
 
     try {
       setStatus('Preparando banner...');
-      const image = await resizeImageFile(file, { maxWidth: 1800, maxHeight: 700, quality: 0.82 });
+      const image = await resizeImageFile(file, { maxWidth: 1400, maxHeight: 520, quality: 0.74, background: '#ffffff', maxBytes: 900000 });
       setField('bannerUrl', image);
       setStatus('Banner pronto para salvar.');
     } catch {
@@ -1288,6 +1288,7 @@ function ProductThumb({ product }) {
 
 function ProductModal({ store, product, onSave, onClose }) {
   const [draft, setDraft] = React.useState(() => normalizeProductForEditing(product, store));
+  const [status, setStatus] = React.useState('');
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
   const configurable = isConfigurableProduct(draft);
   const updateGroup = (index, field, value) => setDraft((current) => {
@@ -1313,6 +1314,20 @@ function ProductModal({ store, product, onSave, onClose }) {
     productType: 'custom',
     optionGroups: presetOptionGroups(preset)
   }));
+  const importProductImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setStatus('Preparando imagem do produto...');
+      const image = await resizeImageFile(file, { maxWidth: 720, maxHeight: 720, quality: 0.78, background: '#ffffff', maxBytes: 450000 });
+      setField('image', image);
+      setStatus('Imagem pronta para salvar.');
+      event.target.value = '';
+    } catch {
+      setStatus('Nao consegui importar essa imagem. Tente outra imagem menor.');
+    }
+  };
   const submit = (event) => {
     event.preventDefault();
     const optionGroups = configurable ? prepareOptionGroupsForSave(draft.optionGroups) : [];
@@ -1346,6 +1361,11 @@ function ProductModal({ store, product, onSave, onClose }) {
             <option value="custom">Produto com escolhas</option>
           </select></label>
         <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
+        <label>Importar imagem do PC<input type="file" accept="image/*" onChange={importProductImage} /></label>
+        <div className="product-image-preview">
+          <ProductThumb product={draft} />
+          <span>Previa da imagem do produto</span>
+        </div>
         {configurable && (
           <section className="segment-options product-options-editor">
             <div className="options-editor-head">
@@ -1389,6 +1409,7 @@ function ProductModal({ store, product, onSave, onClose }) {
         <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
         <label className="check-line"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => setField('featured', event.target.checked)} /> Mostrar em destaque no catalogo</label>
         <label className="check-line"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setField('active', event.target.checked)} /> Produto disponivel para venda</label>
+        {status && <p className="form-status">{status}</p>}
         <button className="orange-button" type="submit"><Check size={18} /> Salvar</button>
       </form>
     </div>
@@ -2644,7 +2665,7 @@ function segmentLoginImage(segment) {
   return images[segment] || images.supermercado;
 }
 
-function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/jpeg', background = '' }) {
+function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/jpeg', background = '', maxBytes = 0 }) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -2652,25 +2673,39 @@ function resizeImageFile(file, { maxWidth, maxHeight, quality, format = 'image/j
       const image = new Image();
       image.onerror = reject;
       image.onload = () => {
-        const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-
         const context = canvas.getContext('2d');
-        if (background) {
-          context.fillStyle = background;
-          context.fillRect(0, 0, width, height);
+        let scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+        let currentQuality = quality;
+        let output = '';
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          const width = Math.max(1, Math.round(image.width * scale));
+          const height = Math.max(1, Math.round(image.height * scale));
+          canvas.width = width;
+          canvas.height = height;
+          context.clearRect(0, 0, width, height);
+          if (background) {
+            context.fillStyle = background;
+            context.fillRect(0, 0, width, height);
+          }
+          context.drawImage(image, 0, 0, width, height);
+          output = canvas.toDataURL(format, currentQuality);
+          if (!maxBytes || dataUrlBytes(output) <= maxBytes) break;
+          scale *= 0.82;
+          currentQuality = Math.max(0.52, currentQuality * 0.86);
         }
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL(format, quality));
+        resolve(output);
       };
       image.src = reader.result;
     };
     reader.readAsDataURL(file);
   });
+}
+
+function dataUrlBytes(value) {
+  const base64 = String(value || '').split(',')[1] || '';
+  return Math.ceil((base64.length * 3) / 4);
 }
 
 function buildCustomerStatusWhatsapp(order) {

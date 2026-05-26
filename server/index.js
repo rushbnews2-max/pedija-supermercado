@@ -11,7 +11,7 @@ const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const tokens = new Map();
 
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
