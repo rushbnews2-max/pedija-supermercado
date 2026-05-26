@@ -1104,6 +1104,18 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     setEditing(null);
   };
 
+  const duplicateProduct = (product) => {
+    const categoryProducts = products.filter((item) => (item.category || 'Sem categoria') === (product.category || 'Sem categoria'));
+    setEditing({
+      ...product,
+      id: '',
+      code: product.code ? `${product.code}-copia` : '',
+      name: `${product.name} (copia)`,
+      sortOrder: nextSortOrder(categoryProducts),
+      optionGroups: cloneOptionGroups(product.optionGroups)
+    });
+  };
+
   const moveProduct = async (product, direction) => {
     const categoryProducts = sortProductsForCatalog(products.filter((item) => (item.category || 'Sem categoria') === (product.category || 'Sem categoria')));
     const index = categoryProducts.findIndex((item) => item.id === product.id);
@@ -1168,6 +1180,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
                     onToggle={() => updateProduct({ ...product, active: !product.active })}
                     onMoveUp={() => moveProduct(product, 'up')}
                     onMoveDown={() => moveProduct(product, 'down')}
+                    onDuplicate={() => duplicateProduct(product)}
                     onDelete={() => {
                       if (confirm(`Excluir o produto "${product.name}"?`)) {
                         deleteProduct(product.id);
@@ -1202,7 +1215,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
   );
 }
 
-function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMoveDown, onDelete }) {
+function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMoveDown, onDuplicate, onDelete }) {
   return (
     <article className="product-row">
       <ProductThumb product={product} />
@@ -1220,6 +1233,7 @@ function ProductRow({ product, isFirst, isLast, onEdit, onToggle, onMoveUp, onMo
         <button aria-label="Subir produto" disabled={isFirst} onClick={onMoveUp}><ChevronUp size={17} /></button>
         <button aria-label="Descer produto" disabled={isLast} onClick={onMoveDown}><ChevronDown size={17} /></button>
         <button aria-label="Status" onClick={onToggle}><Settings size={18} /></button>
+        <button aria-label="Duplicar" onClick={onDuplicate}><Copy size={18} /></button>
         <button aria-label="Editar" onClick={onEdit}><Edit3 size={18} /></button>
         <button aria-label="Excluir" className="danger" onClick={onDelete}><Trash2 size={18} /></button>
       </div>
@@ -2809,6 +2823,15 @@ function normalizeOptionGroups(groups) {
     options: parsePricedOptions(group.options || group.optionsText || ''),
     optionsText: group.optionsText ?? pricedOptionsToText(group.options || [])
   })).filter((group) => group.name);
+}
+
+function cloneOptionGroups(groups) {
+  return normalizeOptionGroups(groups).map((group) => ({
+    ...group,
+    id: crypto.randomUUID(),
+    options: group.options.map((option) => ({ ...option })),
+    optionsText: pricedOptionsToText(group.options)
+  }));
 }
 
 function prepareOptionGroupsForSave(groups) {
