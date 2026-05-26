@@ -2149,6 +2149,10 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
 
   const submit = (event) => {
     event.preventDefault();
+    if (steppedMode && !isLastStep) {
+      nextStep();
+      return;
+    }
     if (validation) return;
     onAdd({
       optionGroups: selectedOptionGroups,
