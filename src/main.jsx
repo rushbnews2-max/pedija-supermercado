@@ -1365,8 +1365,8 @@ function ProductModal({ store, product, onSave, onClose }) {
                     <option value="free">Nao cobrar</option>
                   </select></label>
                 </div>
-                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa | Molho, mussarela, milho e cebola=0&#10;Frango com catupiry | Molho, frango, catupiry e milho=5&#10;Cheddar=7" /></label>
-                <small className="option-format-help">Formato: nome | ingredientes = acrescimo. A descricao e opcional.</small>
+                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa | Molho, mussarela, milho e cebola=R$ 0,00&#10;Frango com catupiry | Molho, frango, catupiry e milho=R$ 5,00&#10;Cheddar=R$ 7,00" /></label>
+                <small className="option-format-help">Formato: nome | ingredientes = R$ acrescimo. Se digitar apenas 50, o sistema entende como R$ 50,00.</small>
               </article>
             ))}
             {!normalizeOptionGroups(draft.optionGroups).length && <p className="empty">Clique em Grupo ou escolha um modelo para cadastrar sabores, bordas e adicionais.</p>}
@@ -2764,12 +2764,23 @@ function parsePricedOptionLine(line) {
   return {
     name: String(name || '').trim(),
     description: descriptionParts.join('|').trim(),
-    price: Number(String(price).replace(',', '.') || 0)
+    price: parseCurrencyValue(price)
   };
 }
 
 function pricedOptionsToText(value) {
-  return parsePricedOptions(value).map((item) => `${item.name}${item.description ? ` | ${item.description}` : ''}=${Number(item.price || 0)}`).join('\n');
+  return parsePricedOptions(value).map((item) => `${item.name}${item.description ? ` | ${item.description}` : ''}=${BRL.format(Number(item.price || 0))}`).join('\n');
+}
+
+function parseCurrencyValue(value) {
+  const clean = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .trim();
+  if (!clean) return 0;
+  const normalized = clean.includes(',')
+    ? clean.replace(/\./g, '').replace(',', '.')
+    : clean;
+  return Number(normalized || 0);
 }
 
 function isConfigurableProduct(product) {

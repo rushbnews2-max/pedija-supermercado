@@ -587,9 +587,20 @@ function normalizePricedOptions(options) {
     .map((option) => ({
       name: String(option.name || '').trim(),
       description: String(option.description || '').trim(),
-      price: Number(option.price || 0)
+      price: parseCurrencyValue(option.price)
     }))
     .filter((option) => option.name);
+}
+
+function parseCurrencyValue(value) {
+  const clean = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .trim();
+  if (!clean) return 0;
+  const normalized = clean.includes(',')
+    ? clean.replace(/\./g, '').replace(',', '.')
+    : clean;
+  return Number(normalized || 0);
 }
 
 function generateAccessPassword() {
