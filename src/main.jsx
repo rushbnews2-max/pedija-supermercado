@@ -1645,7 +1645,7 @@ function ThermalTicket({ store, order }) {
       {order.items.map((item) => (
         <div className="ticket-item" key={`${item.productId}-${item.name}`}>
           <div className="ticket-line">
-            <span>{item.qty}x {item.name}</span>
+            <span>{item.qty}x {item.code ? `Cod. ${item.code} - ` : ''}{item.name}</span>
             <strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong>
           </div>
           {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
@@ -1753,7 +1753,7 @@ function thermalTicketMarkup(store, order) {
   const items = (order.items || []).map((item) => `
     <div>
       <div class="line">
-        <span>${escapeHtml(item.qty)}x ${escapeHtml(item.name)}</span>
+        <span>${escapeHtml(item.qty)}x ${item.code ? `Cod. ${escapeHtml(item.code)} - ` : ''}${escapeHtml(item.name)}</span>
         <strong>${escapeHtml(BRL.format(item.qty * itemUnitPrice(item)))}</strong>
       </div>
       ${formatItemOptions(item) ? `<small>${escapeHtml(formatItemOptions(item))}</small>` : ''}
@@ -1859,6 +1859,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
     return product ? {
       cartKey: key,
       productId,
+      code: product.code || entry?.code || '',
       name: product.name,
       price: product.price,
       qty,
@@ -1902,6 +1903,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         ...current,
         [key]: {
           productId: product.id,
+          code: product.code || '',
           qty,
           optionGroups: options.optionGroups || [],
           optionsPrice: Number(options.optionsPrice || 0),
@@ -3313,6 +3315,7 @@ function saveOrderHistory(key, order) {
     total: order.total || orderTotal(order),
     items: (order.items || []).map((item) => ({
       productId: item.productId,
+      code: item.code || '',
       name: item.name,
       price: item.price,
       qty: item.qty,
