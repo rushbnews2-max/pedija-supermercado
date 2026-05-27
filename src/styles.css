@@ -709,10 +709,25 @@ input[type="file"] {
   gap: 4px;
 }
 
-.ticket-product-name b,
+.ticket-product-name b {
+  font-style: normal;
+  font-weight: 700;
+}
+
 .ticket-product-name i {
   font-style: normal;
   font-weight: 400;
+}
+
+.ticket-head {
+  border-bottom: 1px dashed #0f172a;
+  font-weight: 700;
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+
+.ticket-head .ticket-product-name i {
+  font-weight: 700;
 }
 
 .order-actions {

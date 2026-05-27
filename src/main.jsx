@@ -1642,6 +1642,10 @@ function ThermalTicket({ store, order }) {
       {order.substitution && <p>Falta produto: {order.substitution}</p>}
       {order.notes && <p>Obs: {order.notes}</p>}
       <hr />
+      <div className="ticket-line ticket-head">
+        <span className="ticket-product-name"><b>COD</b><i>DESCRICAO</i></span>
+        <strong>VALOR</strong>
+      </div>
       {order.items.map((item) => (
         <div className="ticket-item" key={`${item.productId}-${item.name}`}>
           <div className="ticket-line">
@@ -1738,7 +1742,11 @@ function thermalTicketDocument(store, order) {
     .line span { flex: 1; }
     .line strong { white-space: nowrap; }
     .product-name { display: grid; grid-template-columns: 30px 1fr; gap: 4px; }
-    .product-name b, .product-name i { font-style: normal; font-weight: 400; }
+    .product-name b, .product-name i { font-style: normal; }
+    .product-name b, .head { font-weight: 700; }
+    .product-name i { font-weight: 400; }
+    .head { border-bottom: 1px dashed #000; margin-bottom: 3px; padding-bottom: 3px; }
+    .head .product-name i { font-weight: 700; }
     small { display: block; margin: 2px 0 4px; overflow-wrap: anywhere; }
     .total { font-size: 14px; font-weight: 700; margin-top: 4px; }
   </style>
@@ -1778,6 +1786,7 @@ function thermalTicketMarkup(store, order) {
     ${order.substitution ? `<p>Falta produto: ${escapeHtml(order.substitution)}</p>` : ''}
     ${order.notes ? `<p>Obs: ${escapeHtml(order.notes)}</p>` : ''}
     <hr />
+    <div class="line head"><span class="product-name"><b>COD</b><i>DESCRICAO</i></span><strong>VALOR</strong></div>
     ${items}
     <hr />
     ${discount > 0 ? `<div class="line"><span>Desconto ${order.coupon ? `(${escapeHtml(order.coupon)})` : ''}</span><strong>-${escapeHtml(BRL.format(discount))}</strong></div>` : ''}
