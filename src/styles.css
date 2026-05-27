@@ -703,6 +703,18 @@ input[type="file"] {
   align-items: center;
 }
 
+.ticket-product-name {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 4px;
+}
+
+.ticket-product-name b,
+.ticket-product-name i {
+  font-style: normal;
+  font-weight: 400;
+}
+
 .order-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));

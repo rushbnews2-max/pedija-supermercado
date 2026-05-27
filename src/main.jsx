@@ -1645,7 +1645,7 @@ function ThermalTicket({ store, order }) {
       {order.items.map((item) => (
         <div className="ticket-item" key={`${item.productId}-${item.name}`}>
           <div className="ticket-line">
-            <span>{item.qty}x {item.code ? `Cod. ${item.code} - ` : ''}{item.name}</span>
+            <span className="ticket-product-name">{item.code && <b>{item.code}</b>}<i>{item.qty}x - {item.name}</i></span>
             <strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong>
           </div>
           {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
@@ -1737,6 +1737,8 @@ function thermalTicketDocument(store, order) {
     .line { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
     .line span { flex: 1; }
     .line strong { white-space: nowrap; }
+    .product-name { display: grid; grid-template-columns: 30px 1fr; gap: 4px; }
+    .product-name b, .product-name i { font-style: normal; font-weight: 400; }
     small { display: block; margin: 2px 0 4px; overflow-wrap: anywhere; }
     .total { font-size: 14px; font-weight: 700; margin-top: 4px; }
   </style>
@@ -1753,7 +1755,7 @@ function thermalTicketMarkup(store, order) {
   const items = (order.items || []).map((item) => `
     <div>
       <div class="line">
-        <span>${escapeHtml(item.qty)}x ${item.code ? `Cod. ${escapeHtml(item.code)} - ` : ''}${escapeHtml(item.name)}</span>
+        <span class="product-name">${item.code ? `<b>${escapeHtml(item.code)}</b>` : '<b></b>'}<i>${escapeHtml(item.qty)}x - ${escapeHtml(item.name)}</i></span>
         <strong>${escapeHtml(BRL.format(item.qty * itemUnitPrice(item)))}</strong>
       </div>
       ${formatItemOptions(item) ? `<small>${escapeHtml(formatItemOptions(item))}</small>` : ''}
