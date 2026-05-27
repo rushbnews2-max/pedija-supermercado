@@ -687,25 +687,45 @@ function NewOrderAlert({ order, onClose, onOpen }) {
 }
 
 function AutoPrintTicket({ store, order, onDone }) {
-  React.useEffect(() => {
-    const frame = document.createElement('iframe');
-    frame.title = `Impressao do pedido ${order.id}`;
-    frame.className = 'print-frame';
-    frame.src = `/imprimir/pedido/${order.id}?auto=1&slug=${encodeURIComponent(store.catalogSlug || '')}`;
-    document.body.appendChild(frame);
+  const printedRef = React.useRef(false);
 
-    const cleanupTimeout = window.setTimeout(() => {
-      frame.remove();
+  React.useEffect(() => {
+    if (printedRef.current) return undefined;
+    printedRef.current = true;
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      delete document.body.dataset.printing;
+      window.removeEventListener('afterprint', finish);
       onDone();
-    }, 9000);
+    };
+
+    const printTimeout = window.setTimeout(() => {
+      document.body.dataset.printing = 'order';
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          window.print();
+          window.setTimeout(finish, 2500);
+        });
+      });
+    }, 900);
+
+    window.addEventListener('afterprint', finish);
 
     return () => {
-      window.clearTimeout(cleanupTimeout);
-      frame.remove();
+      window.clearTimeout(printTimeout);
+      window.removeEventListener('afterprint', finish);
+      delete document.body.dataset.printing;
     };
   }, [onDone, order.id]);
 
-  return null;
+  return (
+    <div className="auto-print-host" aria-hidden="true">
+      <ThermalTicket store={store} order={order} />
+    </div>
+  );
 }
 
 function Dashboard({ store, products, orders, setPage }) {

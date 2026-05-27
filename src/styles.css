@@ -1313,6 +1313,22 @@ input[type="file"] {
   border: 0;
 }
 
+.auto-print-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 80mm;
+  background: #fff;
+  color: #000;
+  z-index: -1;
+}
+
+.auto-print-host .thermal-ticket {
+  width: 80mm;
+  padding: 4mm;
+  box-sizing: border-box;
+}
+
 .print-page {
   width: 80mm;
   min-height: 100vh;
@@ -2417,6 +2433,21 @@ input[type="file"] {
   body[data-printing="order"] .shell,
   body[data-printing="order"] .new-order-alert {
     display: none;
+  }
+
+  body[data-printing="order"] .auto-print-host {
+    visibility: visible;
+    position: static;
+    left: auto;
+    top: auto;
+    width: 80mm;
+    z-index: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  body[data-printing="order"] .auto-print-host * {
+    visibility: visible;
   }
 
   body[data-printing="order"] .thermal-ticket,
