@@ -692,40 +692,11 @@ function AutoPrintTicket({ store, order, onDone }) {
   React.useEffect(() => {
     if (printedRef.current) return undefined;
     printedRef.current = true;
+    const cancel = printThermalOrder(store, order, onDone);
+    return cancel;
+  }, [onDone, order, store]);
 
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      delete document.body.dataset.printing;
-      window.removeEventListener('afterprint', finish);
-      onDone();
-    };
-
-    const printTimeout = window.setTimeout(() => {
-      document.body.dataset.printing = 'order';
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          window.print();
-          window.setTimeout(finish, 2500);
-        });
-      });
-    }, 900);
-
-    window.addEventListener('afterprint', finish);
-
-    return () => {
-      window.clearTimeout(printTimeout);
-      window.removeEventListener('afterprint', finish);
-      delete document.body.dataset.printing;
-    };
-  }, [onDone, order.id]);
-
-  return (
-    <div className="auto-print-host" aria-hidden="true">
-      <ThermalTicket store={store} order={order} />
-    </div>
-  );
+  return null;
 }
 
 function Dashboard({ store, products, orders, setPage }) {
@@ -1618,11 +1589,7 @@ function Deliveries({ orders, updateOrderStatus, setSelectedOrder }) {
 
 function OrderModal({ store, order, updateOrderStatus, deleteOrder, onClose }) {
   const printOrder = () => {
-    document.body.dataset.printing = 'order';
-    setTimeout(() => {
-      window.print();
-      delete document.body.dataset.printing;
-    }, 50);
+    printThermalOrder(store, order);
   };
   const removeOrder = () => {
     if (confirm(`Excluir pedido #${order.id}?`)) {
@@ -1707,6 +1674,127 @@ function ThermalTicket({ store, order }) {
       <p>Status: {order.status}</p>
     </div>
   );
+}
+
+function printThermalOrder(store, order, onDone) {
+  const frame = document.createElement('iframe');
+  let finished = false;
+  let cleanupTimer = 0;
+  let printTimer = 0;
+
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(cleanupTimer);
+    window.clearTimeout(printTimer);
+    frame.remove();
+    onDone?.();
+  };
+
+  frame.title = `Impressao do pedido ${order.id}`;
+  frame.className = 'print-frame';
+  frame.srcdoc = thermalTicketDocument(store, order);
+  document.body.appendChild(frame);
+
+  frame.onload = () => {
+    const printWindow = frame.contentWindow;
+    if (!printWindow) {
+      finish();
+      return;
+    }
+
+    const afterPrint = () => {
+      printWindow.removeEventListener('afterprint', afterPrint);
+      window.setTimeout(finish, 600);
+    };
+
+    printWindow.addEventListener('afterprint', afterPrint);
+    printTimer = window.setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      cleanupTimer = window.setTimeout(finish, 8000);
+    }, 450);
+  };
+
+  cleanupTimer = window.setTimeout(finish, 12000);
+  return finish;
+}
+
+function thermalTicketDocument(store, order) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Pedido #${escapeHtml(order.id)}</title>
+  <style>
+    @page { size: 80mm auto; margin: 0; }
+    html, body { width: 80mm; margin: 0; padding: 0; background: #fff; color: #000; }
+    body { font-family: "Courier New", monospace; font-size: 12px; line-height: 1.28; }
+    .ticket { width: 80mm; padding: 4mm; box-sizing: border-box; }
+    h3 { text-align: center; margin: 0 0 4px; font-size: 14px; }
+    p { margin: 3px 0; overflow-wrap: anywhere; }
+    hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+    .line { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+    .line span { flex: 1; }
+    .line strong { white-space: nowrap; }
+    small { display: block; margin: 2px 0 4px; overflow-wrap: anywhere; }
+    .total { font-size: 14px; font-weight: 700; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="ticket">${thermalTicketMarkup(store, order)}</div>
+</body>
+</html>`;
+}
+
+function thermalTicketMarkup(store, order) {
+  const discount = Number(order.discount || 0);
+  const deliveryFee = Number(order.deliveryFee || 0);
+  const items = (order.items || []).map((item) => `
+    <div>
+      <div class="line">
+        <span>${escapeHtml(item.qty)}x ${escapeHtml(item.name)}</span>
+        <strong>${escapeHtml(BRL.format(item.qty * itemUnitPrice(item)))}</strong>
+      </div>
+      ${formatItemOptions(item) ? `<small>${escapeHtml(formatItemOptions(item))}</small>` : ''}
+      ${item.notes ? `<small>Obs item: ${escapeHtml(item.notes)}</small>` : ''}
+    </div>
+  `).join('');
+
+  return `
+    <h3>${escapeHtml(store.name)}</h3>
+    <p>${escapeHtml(store.phone)}</p>
+    <p>${escapeHtml(store.address)}</p>
+    <hr />
+    <p>Pedido #${escapeHtml(order.id)} - ${escapeHtml(order.createdAt)}</p>
+    <p>Cliente: ${escapeHtml(order.customer)}</p>
+    <p>Telefone: ${escapeHtml(order.phone)}</p>
+    <p>Tipo: ${escapeHtml(order.deliveryMethod || 'Entrega')}</p>
+    <p>Endereco: ${escapeHtml(order.address)}</p>
+    ${order.location?.mapsUrl ? `<p>Mapa: ${escapeHtml(order.location.mapsUrl)}</p>` : ''}
+    ${order.deliveryNeighborhood ? `<p>Bairro: ${escapeHtml(order.deliveryNeighborhood)}</p>` : ''}
+    ${order.substitution ? `<p>Falta produto: ${escapeHtml(order.substitution)}</p>` : ''}
+    ${order.notes ? `<p>Obs: ${escapeHtml(order.notes)}</p>` : ''}
+    <hr />
+    ${items}
+    <hr />
+    ${discount > 0 ? `<div class="line"><span>Desconto ${order.coupon ? `(${escapeHtml(order.coupon)})` : ''}</span><strong>-${escapeHtml(BRL.format(discount))}</strong></div>` : ''}
+    ${deliveryFee > 0 ? `<div class="line"><span>Entrega</span><strong>${escapeHtml(BRL.format(deliveryFee))}</strong></div>` : ''}
+    <div class="line total"><span>Total</span><strong>${escapeHtml(BRL.format(orderTotal(order)))}</strong></div>
+    <p>Pagamento: ${escapeHtml(order.payment)}</p>
+    ${order.paymentStatus ? `<p>Pagamento: ${escapeHtml(order.paymentStatus)}</p>` : ''}
+    <p>Status: ${escapeHtml(order.status)}</p>
+  `;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
 function PrintOrderPage({ store, order, loading }) {
