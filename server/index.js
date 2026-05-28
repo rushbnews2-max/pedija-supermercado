@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, version: 'catalog-fallback-2026-05-28' });
 });
 
 app.post('/api/login', (req, res) => {
