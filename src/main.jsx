@@ -1446,7 +1446,7 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber);
         const content = await page.getTextContent();
-        const pageLines = groupPdfTextByLine(content.items);
+        const pageLines = isFlavorImport ? groupPdfTextByTableLine(content.items) : groupPdfTextByLine(content.items);
         lines.push(...pageLines);
       }
 
@@ -2796,6 +2796,29 @@ function groupPdfTextByLine(textItems) {
     .filter(Boolean);
 }
 
+function groupPdfTextByTableLine(textItems) {
+  const rows = new Map();
+
+  textItems.forEach((item) => {
+    const text = String(item.str || '').trim();
+    if (!text) return;
+    const y = Math.round(item.transform[5]);
+    const row = rows.get(y) || [];
+    row.push({ x: item.transform[4], text });
+    rows.set(y, row);
+  });
+
+  return [...rows.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([, row]) => row
+      .sort((a, b) => a.x - b.x)
+      .map((part) => part.text)
+      .join(' | ')
+      .replace(/\s+/g, ' ')
+      .trim())
+    .filter(Boolean);
+}
+
 async function readPdfWithOcr(pdf, setStatus) {
   const { createWorker, PSM } = await import('tesseract.js');
   const lines = [];
@@ -3281,6 +3304,13 @@ function normalizePizzaProductName(value) {
 
 function splitMenuNameAndDescription(value) {
   const clean = String(value || '').replace(/^[-\s]+/, '').trim();
+  if (clean.includes('|')) {
+    const [name, ...descriptionParts] = clean.split('|').map((part) => part.trim()).filter(Boolean);
+    return {
+      name: name || '',
+      description: descriptionParts.join(' ').trim()
+    };
+  }
   const separator = clean.match(/\s[-:]\s/);
   if (!separator) return { name: clean, description: '' };
   const index = separator.index;
