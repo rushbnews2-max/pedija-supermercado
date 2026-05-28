@@ -1153,6 +1153,9 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             <button className="ghost-button new-product" onClick={() => setImporting('menu')}>
               <ReceiptText size={18} /> Importar cardapio
             </button>
+            <button className="ghost-button new-product" onClick={() => setImporting('flavors')}>
+              <Tag size={18} /> Importar sabores
+            </button>
           </div>
           <div className="product-groups">
             {productsByCategory.map(([category, categoryProducts]) => (
@@ -1204,7 +1207,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
         </>
       ) : null}
       {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
-      {importing && <PdfImportModal mode={importing === 'menu' ? 'menu' : 'erp'} importProducts={importProducts} onClose={() => setImporting(null)} />}
+      {importing && <PdfImportModal mode={importing} products={products} updateProduct={updateProduct} importProducts={importProducts} onClose={() => setImporting(null)} />}
     </>
   );
 }
@@ -1410,12 +1413,21 @@ function ProductModal({ store, product, onSave, onClose }) {
   );
 }
 
-function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
+function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProducts, onClose }) {
   const isMenuImport = mode === 'menu';
-  const [status, setStatus] = React.useState(isMenuImport ? 'Escolha o PDF do cardapio.' : 'Escolha o PDF exportado do ERP.');
+  const isFlavorImport = mode === 'flavors';
+  const [status, setStatus] = React.useState(importInitialStatus(mode));
   const [items, setItems] = React.useState([]);
   const [category, setCategory] = React.useState('Sem categoria');
+  const pizzaTargets = React.useMemo(() => products.filter((product) => isConfigurableProduct(product) || isPizzaText(product.name) || isPizzaText(product.category)), [products]);
+  const [selectedTargets, setSelectedTargets] = React.useState([]);
   const validItems = React.useMemo(() => sanitizeImportedItems(items, category), [items, category]);
+  const validFlavors = React.useMemo(() => sanitizeImportedFlavors(items), [items]);
+
+  React.useEffect(() => {
+    if (!isFlavorImport) return;
+    setSelectedTargets(pizzaTargets.map((product) => product.id));
+  }, [isFlavorImport, pizzaTargets]);
 
   const readPdf = async (event) => {
     const file = event.target.files?.[0];
@@ -1443,9 +1455,11 @@ function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
         lines.push(...await readPdfWithOcr(pdf, setStatus));
       }
 
-      const parsed = isMenuImport ? parseMenuProductsFromPdfLines(lines) : parseProductsFromPdfLines(lines);
+      const parsed = isFlavorImport
+        ? parsePizzaFlavorOptionsFromPdfLines(lines)
+        : isMenuImport ? parseMenuProductsFromPdfLines(lines) : parseProductsFromPdfLines(lines);
       setItems(parsed.map((item) => ({ ...item, priceText: formatImportPrice(item.price) })));
-      setStatus(parsed.length ? `${parsed.length} itens encontrados. Confira antes de importar.` : emptyImportMessage(isMenuImport));
+      setStatus(parsed.length ? `${parsed.length} itens encontrados. Confira antes de importar.` : emptyImportMessage(mode));
     } catch {
       setStatus('Nao consegui ler esse PDF. Se for imagem, tente novamente com internet ativa para baixar o OCR.');
     }
@@ -1459,7 +1473,20 @@ function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
     setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  const toggleTarget = (id) => {
+    setSelectedTargets((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
   const importItems = async () => {
+    if (isFlavorImport) {
+      if (!validFlavors.length || !selectedTargets.length) return;
+      await Promise.all(products
+        .filter((product) => selectedTargets.includes(product.id))
+        .map((product) => updateProduct(applyFlavorsToProduct(product, validFlavors))));
+      onClose();
+      return;
+    }
+
     if (!validItems.length) return;
     await importProducts({ products: validItems, category });
     onClose();
@@ -1469,27 +1496,39 @@ function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
     <div className="overlay">
       <section className="modal import-modal">
         <div className="modal-head">
-          <h2>{isMenuImport ? 'Importar cardapio do PDF' : 'Importar produtos do PDF'}</h2>
+          <h2>{importTitle(mode)}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
-        <label>{isMenuImport ? 'Arquivo PDF do cardapio' : 'Arquivo PDF do ERP'}<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
-        {!isMenuImport && <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
-        <p className="import-status">{status}{items.length > 0 && ` ${validItems.length} produtos validos para importar.`}</p>
+        <label>{importFileLabel(mode)}<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
+        {!isMenuImport && !isFlavorImport && <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
+        {isFlavorImport && (
+          <section className="flavor-targets">
+            <strong>Aplicar sabores em</strong>
+            {pizzaTargets.length ? pizzaTargets.map((product) => (
+              <label className="check-line" key={product.id}>
+                <input type="checkbox" checked={selectedTargets.includes(product.id)} onChange={() => toggleTarget(product.id)} />
+                {product.name}
+              </label>
+            )) : <p className="empty">Cadastre primeiro os tamanhos da pizza, exemplo: Pizza Media, Pizza Grande.</p>}
+          </section>
+        )}
+        <p className="import-status">{status}{items.length > 0 && ` ${isFlavorImport ? validFlavors.length : validItems.length} itens validos para importar.`}</p>
         {items.length > 0 && (
-          <div className={`import-preview ${isMenuImport ? 'menu-import-preview' : ''}`}>
+          <div className={`import-preview ${isMenuImport ? 'menu-import-preview' : ''} ${isFlavorImport ? 'flavor-import-preview' : ''}`}>
             <div className="import-preview-head">
-              <span>Codigo</span>
-              <span>Produto</span>
-              {isMenuImport && <span>Categoria</span>}
+              {!isFlavorImport && <span>Codigo</span>}
+              <span>{isFlavorImport ? 'Sabor' : 'Produto'}</span>
+              {(isMenuImport || isFlavorImport) && <span>{isFlavorImport ? 'Ingredientes' : 'Categoria'}</span>}
               <span>Preco</span>
               {isMenuImport && <span>Tipo</span>}
               <span></span>
             </div>
             {items.map((item, index) => (
               <div className="import-preview-row" key={`${item.code}-${item.name}-${index}`}>
-                <input value={item.code || ''} onChange={(event) => updateImportItem(index, 'code', event.target.value)} />
+                {!isFlavorImport && <input value={item.code || ''} onChange={(event) => updateImportItem(index, 'code', event.target.value)} />}
                 <input value={item.name || ''} onChange={(event) => updateImportItem(index, 'name', event.target.value)} />
                 {isMenuImport && <input value={item.category || ''} onChange={(event) => updateImportItem(index, 'category', event.target.value)} />}
+                {isFlavorImport && <input value={item.description || ''} onChange={(event) => updateImportItem(index, 'description', event.target.value)} />}
                 <input value={item.priceText ?? formatImportPrice(item.price)} onChange={(event) => updateImportItem(index, 'priceText', event.target.value)} />
                 {isMenuImport && <span className="import-type-pill">{isConfigurableProduct(item) ? 'Montagem' : 'Simples'}</span>}
                 <button className="icon-button danger" type="button" title="Remover produto da importacao" onClick={() => removeImportItem(index)}><Trash2 size={16} /></button>
@@ -1499,7 +1538,7 @@ function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
         )}
         <div className="modal-actions">
           <button className="ghost-button" type="button" onClick={onClose}>Cancelar</button>
-          <button className="orange-button" type="button" disabled={!validItems.length} onClick={importItems}><Check size={18} /> Importar produtos</button>
+          <button className="orange-button" type="button" disabled={isFlavorImport ? !validFlavors.length || !selectedTargets.length : !validItems.length} onClick={importItems}><Check size={18} /> {isFlavorImport ? 'Aplicar sabores' : 'Importar produtos'}</button>
         </div>
       </section>
     </div>
@@ -2944,6 +2983,112 @@ function parseMenuProductsFromPdfLines(lines) {
   return products;
 }
 
+function parsePizzaFlavorOptionsFromPdfLines(lines) {
+  const flavors = [];
+  let pending = null;
+
+  mergeMenuPriceLines(lines.map(cleanMenuLine).filter(Boolean)).forEach((line) => {
+    const priceMatch = line.match(/(?:R\$\s*)?(\d{1,4}(?:\.\d{3})*,\d{2}|\d{1,5}\.\d{2})\s*$/);
+    const heading = isLikelyMenuHeading(line);
+    const optionHeading = optionGroupFromHeading(line);
+    if (optionHeading && optionHeading !== 'Sabores') return;
+    if (heading && !isFlavorNameLine(line)) return;
+
+    if (priceMatch) {
+      if (pending) {
+        flavors.push(pending);
+        pending = null;
+      }
+      const namePart = line.slice(0, priceMatch.index).trim();
+      const { name, description } = splitMenuNameAndDescription(namePart);
+      if (name) flavors.push({ name, description, price: parsePdfPrice(priceMatch[1]) });
+      return;
+    }
+
+    if (isFlavorNameLine(line)) {
+      if (pending) flavors.push(pending);
+      pending = { name: titleCaseFlavor(line), description: '', price: 0 };
+      return;
+    }
+
+    if (pending) {
+      pending.description = [pending.description, line].filter(Boolean).join(' ');
+    }
+  });
+
+  if (pending) flavors.push(pending);
+  return uniqueFlavorOptions(flavors);
+}
+
+function uniqueFlavorOptions(options) {
+  const seen = new Set();
+  return options.filter((option) => {
+    const name = String(option.name || '').trim();
+    if (!name) return false;
+    const key = normalizeText(name);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isFlavorNameLine(line) {
+  const clean = String(line || '').replace(/^[\d.\-\s]+/, '').trim();
+  if (!clean || clean.length > 42) return false;
+  if (/(sabores?|bordas?|adicionais|pizzas?|cardapio|tamanhos?)/i.test(clean)) return false;
+  if (/\d{2,}/.test(clean)) return false;
+  const letters = clean.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (letters.length < 4) return false;
+  const upperLetters = letters.replace(/[^A-ZÀ-Ý]/g, '').length;
+  return upperLetters / letters.length > 0.55 || /^[A-ZÀ-Ý][A-Za-zÀ-ÿ\s]+$/.test(clean);
+}
+
+function titleCaseFlavor(value) {
+  return titleCaseMenu(String(value || '').replace(/^[\d.\-\s]+/, '').trim());
+}
+
+function sanitizeImportedFlavors(items) {
+  return uniqueFlavorOptions((Array.isArray(items) ? items : [])
+    .map((item) => ({
+      name: String(item.name || '').trim(),
+      description: String(item.description || '').trim(),
+      price: parseCurrencyValue(item.priceText ?? item.price)
+    }))
+    .filter((item) => item.name));
+}
+
+function applyFlavorsToProduct(product, flavors) {
+  const groups = normalizeOptionGroups(product.optionGroups);
+  const flavorGroupIndex = groups.findIndex((group) => /sabores?/i.test(group.name));
+  const flavorGroup = flavorGroupIndex >= 0 ? groups[flavorGroupIndex] : {
+    id: crypto.randomUUID(),
+    name: 'Sabores',
+    min: 1,
+    max: Math.max(1, Number(product.maxFlavors || 2)),
+    pricing: 'highest',
+    options: [],
+    optionsText: ''
+  };
+  const nextFlavorGroup = {
+    ...flavorGroup,
+    min: Math.max(1, Number(flavorGroup.min || 1)),
+    max: Math.max(1, Number(flavorGroup.max || product.maxFlavors || 2)),
+    pricing: flavorGroup.pricing || 'highest',
+    options: flavors,
+    optionsText: pricedOptionsToText(flavors)
+  };
+  const nextGroups = flavorGroupIndex >= 0
+    ? groups.map((group, index) => index === flavorGroupIndex ? nextFlavorGroup : group)
+    : [nextFlavorGroup, ...groups];
+
+  return {
+    ...product,
+    productType: 'custom',
+    maxFlavors: nextFlavorGroup.max,
+    optionGroups: prepareOptionGroupsForSave(nextGroups)
+  };
+}
+
 function mergeMenuPriceLines(lines) {
   const merged = [];
   let pending = '';
@@ -3054,10 +3199,28 @@ function sanitizeImportedItems(items, fallbackCategory) {
     .filter((item) => item.name && (item.price > 0 || isConfigurableProduct(item)));
 }
 
-function emptyImportMessage(isMenuImport) {
-  return isMenuImport
-    ? 'Nao encontrei itens automaticamente. Tente um PDF com nomes e precos do cardapio em texto selecionavel.'
-    : 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.';
+function importInitialStatus(mode) {
+  if (mode === 'menu') return 'Escolha o PDF do cardapio.';
+  if (mode === 'flavors') return 'Escolha o PDF com os sabores da pizza.';
+  return 'Escolha o PDF exportado do ERP.';
+}
+
+function importTitle(mode) {
+  if (mode === 'menu') return 'Importar cardapio do PDF';
+  if (mode === 'flavors') return 'Importar sabores de pizza';
+  return 'Importar produtos do PDF';
+}
+
+function importFileLabel(mode) {
+  if (mode === 'menu') return 'Arquivo PDF do cardapio';
+  if (mode === 'flavors') return 'Arquivo PDF dos sabores';
+  return 'Arquivo PDF do ERP';
+}
+
+function emptyImportMessage(mode) {
+  if (mode === 'menu') return 'Nao encontrei itens automaticamente. Tente um PDF com nomes e precos do cardapio em texto selecionavel.';
+  if (mode === 'flavors') return 'Nao encontrei sabores automaticamente. Tente um PDF com nomes dos sabores e ingredientes.';
+  return 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.';
 }
 
 function cleanMenuLine(line) {

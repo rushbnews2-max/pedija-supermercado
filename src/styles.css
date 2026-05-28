@@ -1311,6 +1311,20 @@ input[type="file"] {
   grid-template-columns: 72px minmax(160px, 1fr) minmax(120px, .7fr) 105px 90px 42px;
 }
 
+.flavor-import-preview .import-preview-head,
+.flavor-import-preview .import-preview-row {
+  grid-template-columns: minmax(150px, .8fr) minmax(180px, 1fr) 105px 42px;
+}
+
+.flavor-targets {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 12px;
+}
+
 .import-preview-head {
   position: sticky;
   top: 0;
