@@ -1167,9 +1167,6 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             <button className="ghost-button new-product" onClick={() => setImporting('erp')}>
               <PackagePlus size={18} /> Importar PDF ERP
             </button>
-            <button className="ghost-button new-product" onClick={() => setImporting('menu')}>
-              <ReceiptText size={18} /> Importar cardapio
-            </button>
             <button className="ghost-button new-product" onClick={() => setImporting('flavors')}>
               <Tag size={18} /> Importar sabores
             </button>
@@ -1431,7 +1428,6 @@ function ProductModal({ store, product, onSave, onClose }) {
 }
 
 function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProducts, onClose }) {
-  const isMenuImport = mode === 'menu';
   const isFlavorImport = mode === 'flavors';
   const [status, setStatus] = React.useState(importInitialStatus(mode));
   const [items, setItems] = React.useState([]);
@@ -1474,7 +1470,7 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
 
       const parsed = isFlavorImport
         ? parsePizzaFlavorOptionsFromPdfLines(lines)
-        : isMenuImport ? parseMenuProductsFromPdfLines(lines) : parseProductsFromPdfLines(lines);
+        : parseProductsFromPdfLines(lines);
       setItems(parsed.map((item) => ({ ...item, priceText: formatImportPrice(item.price) })));
       setStatus(parsed.length ? `${parsed.length} itens encontrados. Confira antes de importar.` : emptyImportMessage(mode));
     } catch {
@@ -1517,7 +1513,7 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
         <label>{importFileLabel(mode)}<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
-        {!isMenuImport && !isFlavorImport && <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
+        {!isFlavorImport && <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
         {isFlavorImport && (
           <section className="flavor-targets">
             <strong>Aplicar sabores em</strong>
@@ -1531,23 +1527,20 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
         )}
         <p className="import-status">{status}{items.length > 0 && ` ${isFlavorImport ? validFlavors.length : validItems.length} itens validos para importar.`}</p>
         {items.length > 0 && (
-          <div className={`import-preview ${isMenuImport ? 'menu-import-preview' : ''} ${isFlavorImport ? 'flavor-import-preview' : ''}`}>
+          <div className={`import-preview ${isFlavorImport ? 'flavor-import-preview' : ''}`}>
             <div className="import-preview-head">
               {!isFlavorImport && <span>Codigo</span>}
               <span>{isFlavorImport ? 'Sabor' : 'Produto'}</span>
-              {(isMenuImport || isFlavorImport) && <span>{isFlavorImport ? 'Ingredientes' : 'Categoria'}</span>}
+              {isFlavorImport && <span>Ingredientes</span>}
               <span>Preco</span>
-              {isMenuImport && <span>Tipo</span>}
               <span></span>
             </div>
             {items.map((item, index) => (
               <div className="import-preview-row" key={`${item.code}-${item.name}-${index}`}>
                 {!isFlavorImport && <input value={item.code || ''} onChange={(event) => updateImportItem(index, 'code', event.target.value)} />}
                 <input value={item.name || ''} onChange={(event) => updateImportItem(index, 'name', event.target.value)} />
-                {isMenuImport && <input value={item.category || ''} onChange={(event) => updateImportItem(index, 'category', event.target.value)} />}
                 {isFlavorImport && <input value={item.description || ''} onChange={(event) => updateImportItem(index, 'description', event.target.value)} />}
                 <input value={item.priceText ?? formatImportPrice(item.price)} onChange={(event) => updateImportItem(index, 'priceText', event.target.value)} />
-                {isMenuImport && <span className="import-type-pill">{isConfigurableProduct(item) ? 'Montagem' : 'Simples'}</span>}
                 <button className="icon-button danger" type="button" title="Remover produto da importacao" onClick={() => removeImportItem(index)}><Trash2 size={16} /></button>
               </div>
             ))}
@@ -2919,110 +2912,6 @@ function parseProductsFromPdfLines(lines) {
   return products;
 }
 
-function parseMenuProductsFromPdfLines(lines) {
-  const products = [];
-  const pizzaProducts = [];
-  const pizzaFlavors = [];
-  const pizzaBorders = [];
-  const pizzaExtras = [];
-  let currentCategory = 'Cardapio';
-  let currentOptionGroup = '';
-  let code = 1;
-
-  mergeMenuPriceLines(lines.map(cleanMenuLine).filter(Boolean)).forEach((line) => {
-    const priceMatch = line.match(/(?:R\$\s*)?(\d{1,4}(?:\.\d{3})*,\d{2}|\d{1,5}\.\d{2})\s*$/);
-    const maybeHeading = !priceMatch && isLikelyMenuHeading(line);
-
-    if (maybeHeading) {
-      const heading = titleCaseMenu(line);
-      currentOptionGroup = optionGroupFromHeading(heading);
-      if (!currentOptionGroup) currentCategory = heading;
-      return;
-    }
-
-    if (!priceMatch) {
-      if (currentOptionGroup === 'Sabores' && pizzaFlavors.length) {
-        const last = pizzaFlavors[pizzaFlavors.length - 1];
-        last.description = [last.description, line].filter(Boolean).join(' ');
-      }
-      return;
-    }
-
-    const namePart = line.slice(0, priceMatch.index).trim();
-    const price = parsePdfPrice(priceMatch[1]);
-    if (!namePart || Number.isNaN(price)) return;
-
-    const { name, description } = splitMenuNameAndDescription(namePart);
-    if (!name) return;
-
-    const option = { name, description, price };
-    const categoryIsPizza = isPizzaText(currentCategory) || isPizzaText(name);
-    const categoryIsBorder = currentOptionGroup === 'Borda' || /borda/i.test(currentCategory);
-    const categoryIsExtra = currentOptionGroup === 'Adicionais' || /(adicionais|acrescimos|complementos)/i.test(currentCategory);
-
-    if (categoryIsBorder) {
-      pizzaBorders.push(option);
-      return;
-    }
-
-    if (categoryIsExtra) {
-      pizzaExtras.push(option);
-      return;
-    }
-
-    if (categoryIsPizza && !looksLikePizzaSize(name)) {
-      pizzaFlavors.push(option);
-      return;
-    }
-
-    const product = {
-      code: String(code++),
-      name: categoryIsPizza ? normalizePizzaProductName(name) : name,
-      price,
-      category: currentCategory,
-      image: '',
-      promo: false,
-      featured: false,
-      active: true,
-      stock: 0,
-      productType: categoryIsPizza ? 'custom' : 'normal',
-      slices: categoryIsPizza ? guessPizzaSlices(name) : 0,
-      maxFlavors: categoryIsPizza ? 2 : 1,
-      pizzaSize: categoryIsPizza ? guessPizzaSize(name) : '',
-      optionGroups: []
-    };
-
-    if (categoryIsPizza) pizzaProducts.push(product);
-    products.push(product);
-  });
-
-  pizzaProducts.forEach((product) => {
-    product.optionGroups = buildMenuOptionGroups(pizzaFlavors, pizzaBorders, pizzaExtras);
-    if (!product.optionGroups.length) product.optionGroups = presetOptionGroups('pizza');
-  });
-
-  if (!pizzaProducts.length && pizzaFlavors.length) {
-    products.push({
-      code: String(code++),
-      name: 'Pizza',
-      price: 0,
-      category: 'Pizzas',
-      image: '',
-      promo: false,
-      featured: false,
-      active: true,
-      stock: 0,
-      productType: 'custom',
-      slices: 8,
-      maxFlavors: 2,
-      pizzaSize: '',
-      optionGroups: buildMenuOptionGroups(pizzaFlavors, pizzaBorders, pizzaExtras)
-    });
-  }
-
-  return products;
-}
-
 function parsePizzaFlavorOptionsFromPdfLines(lines) {
   const flavors = [];
   let pending = null;
@@ -3168,44 +3057,6 @@ function looksLikeStandalonePrice(line) {
   return /^(?:R\$\s*)?\d{1,4}(?:\.\d{3})*,\d{2}$|^(?:R\$\s*)?\d{1,5}\.\d{2}$/.test(String(line || '').trim());
 }
 
-function buildMenuOptionGroups(flavors, borders, extras) {
-  const groups = [];
-  if (flavors.length) {
-    groups.push({
-      id: crypto.randomUUID(),
-      name: 'Sabores',
-      min: 1,
-      max: 2,
-      pricing: 'highest',
-      options: flavors,
-      optionsText: pricedOptionsToText(flavors)
-    });
-  }
-  if (borders.length) {
-    groups.push({
-      id: crypto.randomUUID(),
-      name: 'Borda',
-      min: 0,
-      max: 1,
-      pricing: 'sum',
-      options: borders,
-      optionsText: pricedOptionsToText(borders)
-    });
-  }
-  if (extras.length) {
-    groups.push({
-      id: crypto.randomUUID(),
-      name: 'Adicionais',
-      min: 0,
-      max: 6,
-      pricing: 'sum',
-      options: extras,
-      optionsText: pricedOptionsToText(extras)
-    });
-  }
-  return groups;
-}
-
 function parsePdfPrice(value) {
   if (value.includes(',')) {
     return Number(value.replace(/\./g, '').replace(',', '.'));
@@ -3240,25 +3091,21 @@ function sanitizeImportedItems(items, fallbackCategory) {
 }
 
 function importInitialStatus(mode) {
-  if (mode === 'menu') return 'Escolha o PDF do cardapio.';
   if (mode === 'flavors') return 'Escolha o PDF com os sabores da pizza.';
   return 'Escolha o PDF exportado do ERP.';
 }
 
 function importTitle(mode) {
-  if (mode === 'menu') return 'Importar cardapio do PDF';
   if (mode === 'flavors') return 'Importar sabores de pizza';
   return 'Importar produtos do PDF';
 }
 
 function importFileLabel(mode) {
-  if (mode === 'menu') return 'Arquivo PDF do cardapio';
   if (mode === 'flavors') return 'Arquivo PDF dos sabores';
   return 'Arquivo PDF do ERP';
 }
 
 function emptyImportMessage(mode) {
-  if (mode === 'menu') return 'Nao encontrei itens automaticamente. Tente um PDF com nomes e precos do cardapio em texto selecionavel.';
   if (mode === 'flavors') return 'Nao encontrei sabores automaticamente. Tente um PDF com nomes dos sabores e ingredientes.';
   return 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.';
 }

@@ -1306,11 +1306,6 @@ input[type="file"] {
   padding: 8px 10px;
 }
 
-.menu-import-preview .import-preview-head,
-.menu-import-preview .import-preview-row {
-  grid-template-columns: 72px minmax(160px, 1fr) minmax(120px, .7fr) 105px 90px 42px;
-}
-
 .flavor-import-preview .import-preview-head,
 .flavor-import-preview .import-preview-row {
   grid-template-columns: minmax(150px, .8fr) minmax(180px, 1fr) 105px 42px;
