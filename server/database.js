@@ -1,10 +1,11 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || join(__dirname, 'data');
 const dbPath = join(dataDir, 'database.json');
+let updateQueue = Promise.resolve();
 
 const initialStore = {
   name: 'Super Feliz Super Mercado',
@@ -154,19 +155,35 @@ const initialData = {
 
 export async function readDb() {
   await ensureDb();
-  return JSON.parse(await readFile(dbPath, 'utf-8'));
+  const raw = await readFile(dbPath, 'utf-8');
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const recovered = recoverJsonWithTrailingGarbage(raw, error);
+    if (!recovered) throw error;
+
+    await writeFile(join(dataDir, `database.corrupt-${Date.now()}.json`), raw);
+    await writeDb(recovered);
+    return recovered;
+  }
 }
 
 export async function writeDb(data) {
   await mkdir(dataDir, { recursive: true });
-  await writeFile(dbPath, JSON.stringify(data, null, 2));
+  const tempPath = join(dataDir, `database.${process.pid}.${Date.now()}.tmp`);
+  await writeFile(tempPath, JSON.stringify(data, null, 2));
+  await rename(tempPath, dbPath);
   return data;
 }
 
 export async function updateDb(updater) {
-  const db = await readDb();
-  const nextDb = await updater(db);
-  return writeDb(nextDb);
+  const operation = updateQueue.then(async () => {
+    const db = await readDb();
+    const nextDb = await updater(db);
+    return writeDb(nextDb);
+  });
+  updateQueue = operation.catch(() => {});
+  return operation;
 }
 
 async function ensureDb() {
@@ -174,5 +191,16 @@ async function ensureDb() {
     await readFile(dbPath, 'utf-8');
   } catch {
     await writeDb(initialData);
+  }
+}
+
+function recoverJsonWithTrailingGarbage(raw, error) {
+  const position = Number(String(error?.message || '').match(/position\s+(\d+)/)?.[1]);
+  if (!Number.isFinite(position) || position <= 0) return null;
+
+  try {
+    return JSON.parse(raw.slice(0, position));
+  } catch {
+    return null;
   }
 }
