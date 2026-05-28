@@ -55,8 +55,9 @@ app.post('/api/logout', requireAdmin, (req, res) => {
 });
 
 app.get('/api/public', async (req, res) => {
+  let db;
   try {
-    const db = await readDb();
+    db = await readDb();
     const scoped = getPublicStore(db, req.query.slug);
     res.json({
       store: scoped.store,
@@ -65,6 +66,19 @@ app.get('/api/public', async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao carregar catalogo publico', error);
+    if (db) {
+      try {
+        const fallback = getPublicStoreFallback(db, req.query.slug);
+        res.json({
+          store: fallback.store,
+          products: fallback.products.filter((product) => product.active !== false),
+          coupons: fallback.coupons.filter((coupon) => coupon.active !== false)
+        });
+        return;
+      } catch (fallbackError) {
+        console.error('Erro no fallback do catalogo publico', fallbackError);
+      }
+    }
     res.status(500).json({ message: 'Erro ao carregar catalogo publico' });
   }
 });
@@ -690,6 +704,77 @@ function getPublicStore(db, slug) {
     orders: establishment.orders || [],
     coupons: establishment.coupons || []
   };
+}
+
+function getPublicStoreFallback(db, slug) {
+  const safeDb = db && typeof db === 'object' ? db : {};
+  const requestedSlug = String(slug || '').trim();
+  const catalogSlug = slugify(requestedSlug || safeDb.store?.catalogSlug || 'catalogo');
+  const establishments = Array.isArray(safeDb.establishments) ? safeDb.establishments.filter((item) => item && typeof item === 'object') : [];
+  const establishment = establishments.find((item) => slugify(item.catalogSlug || item.name || 'catalogo') === catalogSlug);
+
+  if (establishment) {
+    const store = {
+      ...establishmentToStore(establishment),
+      ...(establishment.store && typeof establishment.store === 'object' ? establishment.store : {}),
+      catalogSlug
+    };
+    return {
+      establishmentId: establishment.id || null,
+      store,
+      products: safeArray(establishment.products).filter((product) => product && typeof product === 'object').map(normalizePublicProduct),
+      orders: safeArray(establishment.orders).filter((order) => order && typeof order === 'object'),
+      coupons: safeArray(establishment.coupons).filter((coupon) => coupon && typeof coupon === 'object').map(normalizeCoupon)
+    };
+  }
+
+  if (requestedSlug) {
+    return notFoundPublicStore(catalogSlug);
+  }
+
+  return {
+    establishmentId: null,
+    store: {
+      ...establishmentToStore(safeDb.store || {}),
+      ...(safeDb.store && typeof safeDb.store === 'object' ? safeDb.store : {})
+    },
+    products: safeArray(safeDb.products).filter((product) => product && typeof product === 'object').map(normalizePublicProduct),
+    orders: safeArray(safeDb.orders).filter((order) => order && typeof order === 'object'),
+    coupons: safeArray(safeDb.coupons).filter((coupon) => coupon && typeof coupon === 'object').map(normalizeCoupon)
+  };
+}
+
+function notFoundPublicStore(catalogSlug) {
+  return {
+    establishmentId: null,
+    store: {
+      name: 'Catalogo nao encontrado',
+      type: 'Estabelecimento',
+      phone: '',
+      hours: '',
+      status: 'Fechado',
+      address: '',
+      catalogSlug,
+      segment: 'estabelecimento',
+      bannerText: 'Catalogo nao encontrado',
+      bannerUrl: '',
+      logoUrl: ''
+    },
+    products: [],
+    orders: [],
+    coupons: []
+  };
+}
+
+function normalizePublicProduct(product) {
+  return {
+    ...product,
+    optionGroups: normalizeProductOptionGroups(product.optionGroups)
+  };
+}
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function getStoreBySession(db, session) {
