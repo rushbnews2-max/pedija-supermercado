@@ -1411,6 +1411,7 @@ function PdfImportModal({ importProducts, onClose }) {
   const [status, setStatus] = React.useState('Escolha o PDF exportado do ERP.');
   const [items, setItems] = React.useState([]);
   const [category, setCategory] = React.useState('Sem categoria');
+  const validItems = React.useMemo(() => sanitizeImportedItems(items), [items]);
 
   const readPdf = async (event) => {
     const file = event.target.files?.[0];
@@ -1434,16 +1435,24 @@ function PdfImportModal({ importProducts, onClose }) {
       }
 
       const parsed = parseProductsFromPdfLines(lines);
-      setItems(parsed);
+      setItems(parsed.map((item) => ({ ...item, priceText: formatImportPrice(item.price) })));
       setStatus(parsed.length ? `${parsed.length} produtos encontrados. Confira antes de importar.` : 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.');
     } catch {
       setStatus('Nao consegui ler esse PDF. Verifique se ele possui texto selecionavel, nao apenas imagem escaneada.');
     }
   };
 
+  const updateImportItem = (index, field, value) => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item));
+  };
+
+  const removeImportItem = (index) => {
+    setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
   const importItems = async () => {
-    if (!items.length) return;
-    await importProducts({ products: items, category });
+    if (!validItems.length) return;
+    await importProducts({ products: validItems, category });
     onClose();
   };
 
@@ -1456,26 +1465,28 @@ function PdfImportModal({ importProducts, onClose }) {
         </div>
         <label>Arquivo PDF do ERP<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
         <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>
-        <p className="import-status">{status}</p>
+        <p className="import-status">{status}{items.length > 0 && ` ${validItems.length} produtos validos para importar.`}</p>
         {items.length > 0 && (
           <div className="import-preview">
             <div className="import-preview-head">
               <span>Codigo</span>
               <span>Produto</span>
               <span>Preco</span>
+              <span></span>
             </div>
-            {items.slice(0, 80).map((item, index) => (
+            {items.map((item, index) => (
               <div className="import-preview-row" key={`${item.code}-${item.name}-${index}`}>
-                <span>{item.code}</span>
-                <strong>{item.name}</strong>
-                <span>{BRL.format(item.price)}</span>
+                <input value={item.code || ''} onChange={(event) => updateImportItem(index, 'code', event.target.value)} />
+                <input value={item.name || ''} onChange={(event) => updateImportItem(index, 'name', event.target.value)} />
+                <input value={item.priceText ?? formatImportPrice(item.price)} onChange={(event) => updateImportItem(index, 'priceText', event.target.value)} />
+                <button className="icon-button danger" type="button" title="Remover produto da importacao" onClick={() => removeImportItem(index)}><Trash2 size={16} /></button>
               </div>
             ))}
           </div>
         )}
         <div className="modal-actions">
           <button className="ghost-button" type="button" onClick={onClose}>Cancelar</button>
-          <button className="orange-button" type="button" disabled={!items.length} onClick={importItems}><Check size={18} /> Importar produtos</button>
+          <button className="orange-button" type="button" disabled={!validItems.length} onClick={importItems}><Check size={18} /> Importar produtos</button>
         </div>
       </section>
     </div>
@@ -2773,6 +2784,20 @@ function parsePdfPrice(value) {
   }
 
   return Number(value);
+}
+
+function formatImportPrice(value) {
+  return Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function sanitizeImportedItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      code: String(item.code || '').trim(),
+      name: String(item.name || '').trim(),
+      price: parseCurrencyValue(item.priceText ?? item.price)
+    }))
+    .filter((item) => item.name && item.price > 0);
 }
 
 function slugify(value) {

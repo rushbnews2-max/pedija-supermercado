@@ -1299,7 +1299,7 @@ input[type="file"] {
 .import-preview-head,
 .import-preview-row {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr) 110px;
+  grid-template-columns: 110px minmax(0, 1fr) 120px 42px;
   gap: 10px;
   align-items: center;
   min-height: 38px;
@@ -1319,8 +1319,28 @@ input[type="file"] {
   border-bottom: 1px solid #eef1f5;
 }
 
-.import-preview-row strong {
-  overflow-wrap: anywhere;
+.import-preview-row input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d7dde7;
+  border-radius: 6px;
+  font: inherit;
+  padding: 8px 9px;
+}
+
+.import-preview-row .icon-button {
+  align-items: center;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 7px;
+  color: #e11d48;
+  cursor: pointer;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
 }
 
 .thermal-ticket {
