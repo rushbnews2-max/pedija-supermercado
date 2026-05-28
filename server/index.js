@@ -13,8 +13,13 @@ const tokens = new Map();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, version: 'catalog-fallback-2026-05-28' });
+app.get('/api/health', async (_req, res) => {
+  try {
+    await readDb();
+    res.json({ ok: true, version: 'catalog-fallback-2026-05-28', db: 'ok' });
+  } catch (error) {
+    res.json({ ok: true, version: 'catalog-fallback-2026-05-28', db: 'error', error: String(error?.message || error).slice(0, 160) });
+  }
 });
 
 app.post('/api/login', (req, res) => {
