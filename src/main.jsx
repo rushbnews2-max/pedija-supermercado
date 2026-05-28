@@ -1438,11 +1438,16 @@ function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
         lines.push(...pageLines);
       }
 
+      if (!lines.length) {
+        setStatus('Esse PDF parece ser imagem. Tentando leitura OCR...');
+        lines.push(...await readPdfWithOcr(pdf, setStatus));
+      }
+
       const parsed = isMenuImport ? parseMenuProductsFromPdfLines(lines) : parseProductsFromPdfLines(lines);
       setItems(parsed.map((item) => ({ ...item, priceText: formatImportPrice(item.price) })));
       setStatus(parsed.length ? `${parsed.length} itens encontrados. Confira antes de importar.` : emptyImportMessage(isMenuImport));
     } catch {
-      setStatus('Nao consegui ler esse PDF. Verifique se ele possui texto selecionavel, nao apenas imagem escaneada.');
+      setStatus('Nao consegui ler esse PDF. Se for imagem, tente novamente com internet ativa para baixar o OCR.');
     }
   };
 
@@ -2752,6 +2757,55 @@ function groupPdfTextByLine(textItems) {
     .filter(Boolean);
 }
 
+async function readPdfWithOcr(pdf, setStatus) {
+  const { createWorker, PSM } = await import('tesseract.js');
+  const lines = [];
+  let currentPage = 1;
+  const worker = await createWorker('por+eng', 1, {
+    logger: (event) => {
+      if (event.status !== 'recognizing text') return;
+      const progress = Math.round((event.progress || 0) * 100);
+      setStatus(`Lendo imagem do cardapio por OCR... pagina ${currentPage}/${pdf.numPages} (${progress}%)`);
+    }
+  });
+
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SPARSE_TEXT
+    });
+
+    for (currentPage = 1; currentPage <= pdf.numPages; currentPage += 1) {
+      setStatus(`Preparando pagina ${currentPage}/${pdf.numPages} para OCR...`);
+      const page = await pdf.getPage(currentPage);
+      const image = await renderPdfPageToImage(page);
+      const result = await worker.recognize(image);
+      lines.push(...ocrTextToLines(result.data?.text || ''));
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  return lines;
+}
+
+async function renderPdfPageToImage(page) {
+  const viewport = page.getViewport({ scale: 2.4 });
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('Canvas indisponivel para OCR.');
+  canvas.width = Math.round(viewport.width);
+  canvas.height = Math.round(viewport.height);
+  await page.render({ canvasContext: context, viewport }).promise;
+  return canvas.toDataURL('image/png');
+}
+
+function ocrTextToLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 function parseProductsFromPdfLines(lines) {
   const products = [];
   const seen = new Set();
@@ -2796,7 +2850,7 @@ function parseMenuProductsFromPdfLines(lines) {
   let currentOptionGroup = '';
   let code = 1;
 
-  lines.map(cleanMenuLine).filter(Boolean).forEach((line) => {
+  mergeMenuPriceLines(lines.map(cleanMenuLine).filter(Boolean)).forEach((line) => {
     const priceMatch = line.match(/(?:R\$\s*)?(\d{1,4}(?:\.\d{3})*,\d{2}|\d{1,5}\.\d{2})\s*$/);
     const maybeHeading = !priceMatch && isLikelyMenuHeading(line);
 
@@ -2888,6 +2942,45 @@ function parseMenuProductsFromPdfLines(lines) {
   }
 
   return products;
+}
+
+function mergeMenuPriceLines(lines) {
+  const merged = [];
+  let pending = '';
+
+  lines.forEach((line) => {
+    const clean = cleanMenuLine(line);
+    if (!clean) return;
+    if (looksLikeStandalonePrice(clean) && pending) {
+      merged.push(`${pending} ${clean}`);
+      pending = '';
+      return;
+    }
+    if (lineHasMenuPrice(clean)) {
+      if (pending && !isLikelyMenuHeading(pending)) merged.push(pending);
+      merged.push(clean);
+      pending = '';
+      return;
+    }
+    if (isLikelyMenuHeading(clean)) {
+      if (pending) merged.push(pending);
+      merged.push(clean);
+      pending = '';
+      return;
+    }
+    pending = pending ? `${pending} ${clean}` : clean;
+  });
+
+  if (pending) merged.push(pending);
+  return merged;
+}
+
+function lineHasMenuPrice(line) {
+  return /(?:R\$\s*)?\d{1,4}(?:\.\d{3})*,\d{2}\s*$|(?:R\$\s*)?\d{1,5}\.\d{2}\s*$/.test(String(line || ''));
+}
+
+function looksLikeStandalonePrice(line) {
+  return /^(?:R\$\s*)?\d{1,4}(?:\.\d{3})*,\d{2}$|^(?:R\$\s*)?\d{1,5}\.\d{2}$/.test(String(line || '').trim());
 }
 
 function buildMenuOptionGroups(flavors, borders, extras) {
