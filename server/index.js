@@ -55,13 +55,18 @@ app.post('/api/logout', requireAdmin, (req, res) => {
 });
 
 app.get('/api/public', async (req, res) => {
-  const db = await readDb();
-  const scoped = getPublicStore(db, req.query.slug);
-  res.json({
-    store: scoped.store,
-    products: scoped.products.filter((product) => product.active),
-    coupons: scoped.coupons.filter((coupon) => coupon.active)
-  });
+  try {
+    const db = await readDb();
+    const scoped = getPublicStore(db, req.query.slug);
+    res.json({
+      store: scoped.store,
+      products: scoped.products.filter((product) => product.active !== false),
+      coupons: scoped.coupons.filter((coupon) => coupon.active !== false)
+    });
+  } catch (error) {
+    console.error('Erro ao carregar catalogo publico', error);
+    res.status(500).json({ message: 'Erro ao carregar catalogo publico' });
+  }
 });
 
 app.get('/api/public/orders/:id', async (req, res) => {
@@ -490,25 +495,28 @@ async function ensurePlatformDefaults() {
 }
 
 function withPlatformDefaults(db) {
-  const establishments = db.establishments || buildDefaultEstablishments(db.store);
+  const safeDb = db && typeof db === 'object' ? db : {};
+  const establishments = Array.isArray(safeDb.establishments) ? safeDb.establishments : buildDefaultEstablishments(safeDb.store);
 
   return {
-    ...db,
+    ...safeDb,
     store: {
       segment: 'supermercado',
       deliveryZones: [],
       categoryOrder: [],
       pizzaFlavors: [],
       pizzaBorders: [],
-      ...db.store
+      ...safeDb.store
     },
-    establishments: establishments.map((item) => normalizeEstablishment({
-      ...item,
-      store: item.store || (item.id === 'store-main' ? db.store : undefined),
-      products: Array.isArray(item.products) ? item.products : (item.id === 'store-main' ? db.products : []),
-      orders: Array.isArray(item.orders) ? item.orders : (item.id === 'store-main' ? db.orders : []),
-      coupons: Array.isArray(item.coupons) ? item.coupons : (item.id === 'store-main' ? db.coupons : [])
-    }))
+    establishments: establishments
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => normalizeEstablishment({
+        ...item,
+        store: item.store || (item.id === 'store-main' ? safeDb.store : undefined),
+        products: Array.isArray(item.products) ? item.products : (item.id === 'store-main' ? safeDb.products : []),
+        orders: Array.isArray(item.orders) ? item.orders : (item.id === 'store-main' ? safeDb.orders : []),
+        coupons: Array.isArray(item.coupons) ? item.coupons : (item.id === 'store-main' ? safeDb.coupons : [])
+      }))
   };
 }
 
@@ -547,12 +555,12 @@ function normalizeEstablishment(value) {
     adminUser: value.adminUser || 'admin',
     adminPassword: value.adminPassword || generateAccessPassword(),
     store,
-    products: Array.isArray(value.products) ? value.products.map((product) => ({
+    products: Array.isArray(value.products) ? value.products.filter((product) => product && typeof product === 'object').map((product) => ({
       ...product,
       optionGroups: normalizeProductOptionGroups(product.optionGroups)
     })) : [],
-    orders: Array.isArray(value.orders) ? value.orders : [],
-    coupons: Array.isArray(value.coupons) ? value.coupons.map((coupon) => normalizeCoupon(coupon)) : []
+    orders: Array.isArray(value.orders) ? value.orders.filter((order) => order && typeof order === 'object') : [],
+    coupons: Array.isArray(value.coupons) ? value.coupons.filter((coupon) => coupon && typeof coupon === 'object').map((coupon) => normalizeCoupon(coupon)) : []
   };
 }
 
@@ -571,6 +579,7 @@ function normalizeCoupon(value) {
 function normalizeProductOptionGroups(groups) {
   if (!Array.isArray(groups)) return [];
   return groups
+    .filter((group) => group && typeof group === 'object')
     .map((group) => ({
       id: group.id || crypto.randomUUID(),
       name: String(group.name || '').trim(),
@@ -585,6 +594,7 @@ function normalizeProductOptionGroups(groups) {
 function normalizePricedOptions(options) {
   if (!Array.isArray(options)) return [];
   return options
+    .filter((option) => option && typeof option === 'object')
     .map((option) => ({
       name: String(option.name || '').trim(),
       description: String(option.description || '').trim(),

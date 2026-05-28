@@ -397,7 +397,24 @@ function App() {
         } catch {
           return { ...data, orders: [] };
         }
-      })
+      }).catch(() => ({
+        store: {
+          name: 'Catalogo indisponivel',
+          type: 'Estabelecimento',
+          phone: '',
+          hours: '',
+          status: 'Fechado',
+          address: '',
+          catalogSlug: routeSlug || 'catalogo',
+          segment: 'estabelecimento',
+          bannerText: 'Catalogo indisponivel',
+          bannerUrl: '',
+          logoUrl: ''
+        },
+        products: [],
+        coupons: [],
+        orders: []
+      }))
       : authToken
         ? migrateLocalData().then((migrated) => migrated || api('/api/bootstrap'))
         : Promise.resolve({ store: initialStore, products: [], orders: [] });
