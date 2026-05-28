@@ -1101,6 +1101,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
     sortProductsForCatalog(products.filter((product) => (product.category || 'Sem categoria') === category))
   ]);
   const productTabs = ['Produtos', 'Categorias'];
+  const canImportFlavors = supportsFlavorImport(store);
   const savePizzaOptions = async (field, value) => {
     await setStore({ ...store, [field]: parsePricedOptions(value) });
   };
@@ -1167,9 +1168,11 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             <button className="ghost-button new-product" onClick={() => setImporting('erp')}>
               <PackagePlus size={18} /> Importar PDF ERP
             </button>
-            <button className="ghost-button new-product" onClick={() => setImporting('flavors')}>
-              <Tag size={18} /> Importar sabores
-            </button>
+            {canImportFlavors && (
+              <button className="ghost-button new-product" onClick={() => setImporting('flavors')}>
+                <Tag size={18} /> Importar sabores
+              </button>
+            )}
           </div>
           <div className="product-groups">
             {productsByCategory.map(([category, categoryProducts]) => (
@@ -3672,6 +3675,10 @@ function validateSelectedOptions(groups, selected) {
 
 function usesSteppedProductBuilder(store) {
   return ['pizzaria', 'lanchonete', 'hamburgueria', 'restaurante'].includes(normalizeText(store?.segment || store?.type));
+}
+
+function supportsFlavorImport(store) {
+  return ['pizzaria', 'lanchonete', 'hamburgueria', 'restaurante', 'padaria'].includes(normalizeText(store?.segment || store?.type));
 }
 
 function stepTitle(group) {
