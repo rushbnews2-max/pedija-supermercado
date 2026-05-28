@@ -1306,6 +1306,11 @@ input[type="file"] {
   padding: 8px 10px;
 }
 
+.menu-import-preview .import-preview-head,
+.menu-import-preview .import-preview-row {
+  grid-template-columns: 72px minmax(160px, 1fr) minmax(120px, .7fr) 105px 90px 42px;
+}
+
 .import-preview-head {
   position: sticky;
   top: 0;
@@ -1341,6 +1346,18 @@ input[type="file"] {
   justify-content: center;
   min-height: 34px;
   padding: 0;
+}
+
+.import-type-pill {
+  background: #eef6ff;
+  border: 1px solid #cfe4ff;
+  border-radius: 999px;
+  color: #24557a;
+  font-size: 12px;
+  font-weight: 800;
+  justify-self: start;
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
 .thermal-ticket {

@@ -293,17 +293,18 @@ app.post('/api/products/import', async (req, res) => {
         code: product.code || '',
         name: product.name,
         price: Number(product.price || 0),
-        category,
-        image: '',
-        promo: false,
-        featured: false,
-        active: true,
-        stock: 0,
+        category: product.category || category,
+        image: product.image || '',
+        promo: Boolean(product.promo),
+        featured: Boolean(product.featured),
+        active: product.active !== false,
+        stock: Number(product.stock || 0),
         sortOrder: index + 1,
-        productType: 'normal',
-        slices: 0,
-        maxFlavors: 1,
-        optionGroups: []
+        productType: product.productType || 'normal',
+        slices: Number(product.slices || 0),
+        maxFlavors: Number(product.maxFlavors || 1),
+        pizzaSize: product.pizzaSize || '',
+        optionGroups: normalizeProductOptionGroups(product.optionGroups)
       }));
     savedProducts = [...newProducts, ...scopedProducts];
 

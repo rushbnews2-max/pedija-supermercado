@@ -1077,7 +1077,7 @@ function StoreModal({ store, onSave, onClose }) {
 function Products({ store, setStore, products, createProduct, updateProduct, deleteProduct, importProducts }) {
   const [tab, setTab] = React.useState('Produtos');
   const [editing, setEditing] = React.useState(null);
-  const [importing, setImporting] = React.useState(false);
+  const [importing, setImporting] = React.useState(null);
   const categories = sortedCategories(products, store.categoryOrder);
   const productsByCategory = categories.map((category) => [
     category,
@@ -1147,8 +1147,11 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
             <button className="orange-button new-product" onClick={() => setEditing({ code: '', name: '', price: 0, category: 'Sem categoria', image: '', promo: false, featured: false, stock: 0, active: true, productType: 'normal', optionGroups: [] })}>
               <Plus size={18} /> Novo Produto
             </button>
-            <button className="ghost-button new-product" onClick={() => setImporting(true)}>
+            <button className="ghost-button new-product" onClick={() => setImporting('erp')}>
               <PackagePlus size={18} /> Importar PDF ERP
+            </button>
+            <button className="ghost-button new-product" onClick={() => setImporting('menu')}>
+              <ReceiptText size={18} /> Importar cardapio
             </button>
           </div>
           <div className="product-groups">
@@ -1201,7 +1204,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
         </>
       ) : null}
       {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
-      {importing && <PdfImportModal importProducts={importProducts} onClose={() => setImporting(false)} />}
+      {importing && <PdfImportModal mode={importing === 'menu' ? 'menu' : 'erp'} importProducts={importProducts} onClose={() => setImporting(null)} />}
     </>
   );
 }
@@ -1407,11 +1410,12 @@ function ProductModal({ store, product, onSave, onClose }) {
   );
 }
 
-function PdfImportModal({ importProducts, onClose }) {
-  const [status, setStatus] = React.useState('Escolha o PDF exportado do ERP.');
+function PdfImportModal({ mode = 'erp', importProducts, onClose }) {
+  const isMenuImport = mode === 'menu';
+  const [status, setStatus] = React.useState(isMenuImport ? 'Escolha o PDF do cardapio.' : 'Escolha o PDF exportado do ERP.');
   const [items, setItems] = React.useState([]);
   const [category, setCategory] = React.useState('Sem categoria');
-  const validItems = React.useMemo(() => sanitizeImportedItems(items), [items]);
+  const validItems = React.useMemo(() => sanitizeImportedItems(items, category), [items, category]);
 
   const readPdf = async (event) => {
     const file = event.target.files?.[0];
@@ -1434,9 +1438,9 @@ function PdfImportModal({ importProducts, onClose }) {
         lines.push(...pageLines);
       }
 
-      const parsed = parseProductsFromPdfLines(lines);
+      const parsed = isMenuImport ? parseMenuProductsFromPdfLines(lines) : parseProductsFromPdfLines(lines);
       setItems(parsed.map((item) => ({ ...item, priceText: formatImportPrice(item.price) })));
-      setStatus(parsed.length ? `${parsed.length} produtos encontrados. Confira antes de importar.` : 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.');
+      setStatus(parsed.length ? `${parsed.length} itens encontrados. Confira antes de importar.` : emptyImportMessage(isMenuImport));
     } catch {
       setStatus('Nao consegui ler esse PDF. Verifique se ele possui texto selecionavel, nao apenas imagem escaneada.');
     }
@@ -1460,25 +1464,29 @@ function PdfImportModal({ importProducts, onClose }) {
     <div className="overlay">
       <section className="modal import-modal">
         <div className="modal-head">
-          <h2>Importar produtos do PDF</h2>
+          <h2>{isMenuImport ? 'Importar cardapio do PDF' : 'Importar produtos do PDF'}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
-        <label>Arquivo PDF do ERP<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
-        <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>
+        <label>{isMenuImport ? 'Arquivo PDF do cardapio' : 'Arquivo PDF do ERP'}<input type="file" accept="application/pdf,.pdf" onChange={readPdf} /></label>
+        {!isMenuImport && <label>Categoria dos produtos importados<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>}
         <p className="import-status">{status}{items.length > 0 && ` ${validItems.length} produtos validos para importar.`}</p>
         {items.length > 0 && (
-          <div className="import-preview">
+          <div className={`import-preview ${isMenuImport ? 'menu-import-preview' : ''}`}>
             <div className="import-preview-head">
               <span>Codigo</span>
               <span>Produto</span>
+              {isMenuImport && <span>Categoria</span>}
               <span>Preco</span>
+              {isMenuImport && <span>Tipo</span>}
               <span></span>
             </div>
             {items.map((item, index) => (
               <div className="import-preview-row" key={`${item.code}-${item.name}-${index}`}>
                 <input value={item.code || ''} onChange={(event) => updateImportItem(index, 'code', event.target.value)} />
                 <input value={item.name || ''} onChange={(event) => updateImportItem(index, 'name', event.target.value)} />
+                {isMenuImport && <input value={item.category || ''} onChange={(event) => updateImportItem(index, 'category', event.target.value)} />}
                 <input value={item.priceText ?? formatImportPrice(item.price)} onChange={(event) => updateImportItem(index, 'priceText', event.target.value)} />
+                {isMenuImport && <span className="import-type-pill">{isConfigurableProduct(item) ? 'Montagem' : 'Simples'}</span>}
                 <button className="icon-button danger" type="button" title="Remover produto da importacao" onClick={() => removeImportItem(index)}><Trash2 size={16} /></button>
               </div>
             ))}
@@ -2778,6 +2786,148 @@ function parseProductsFromPdfLines(lines) {
   return products;
 }
 
+function parseMenuProductsFromPdfLines(lines) {
+  const products = [];
+  const pizzaProducts = [];
+  const pizzaFlavors = [];
+  const pizzaBorders = [];
+  const pizzaExtras = [];
+  let currentCategory = 'Cardapio';
+  let currentOptionGroup = '';
+  let code = 1;
+
+  lines.map(cleanMenuLine).filter(Boolean).forEach((line) => {
+    const priceMatch = line.match(/(?:R\$\s*)?(\d{1,4}(?:\.\d{3})*,\d{2}|\d{1,5}\.\d{2})\s*$/);
+    const maybeHeading = !priceMatch && isLikelyMenuHeading(line);
+
+    if (maybeHeading) {
+      const heading = titleCaseMenu(line);
+      currentOptionGroup = optionGroupFromHeading(heading);
+      if (!currentOptionGroup) currentCategory = heading;
+      return;
+    }
+
+    if (!priceMatch) {
+      if (currentOptionGroup === 'Sabores' && pizzaFlavors.length) {
+        const last = pizzaFlavors[pizzaFlavors.length - 1];
+        last.description = [last.description, line].filter(Boolean).join(' ');
+      }
+      return;
+    }
+
+    const namePart = line.slice(0, priceMatch.index).trim();
+    const price = parsePdfPrice(priceMatch[1]);
+    if (!namePart || Number.isNaN(price)) return;
+
+    const { name, description } = splitMenuNameAndDescription(namePart);
+    if (!name) return;
+
+    const option = { name, description, price };
+    const categoryIsPizza = isPizzaText(currentCategory) || isPizzaText(name);
+    const categoryIsBorder = currentOptionGroup === 'Borda' || /borda/i.test(currentCategory);
+    const categoryIsExtra = currentOptionGroup === 'Adicionais' || /(adicionais|acrescimos|complementos)/i.test(currentCategory);
+
+    if (categoryIsBorder) {
+      pizzaBorders.push(option);
+      return;
+    }
+
+    if (categoryIsExtra) {
+      pizzaExtras.push(option);
+      return;
+    }
+
+    if (categoryIsPizza && !looksLikePizzaSize(name)) {
+      pizzaFlavors.push(option);
+      return;
+    }
+
+    const product = {
+      code: String(code++),
+      name: categoryIsPizza ? normalizePizzaProductName(name) : name,
+      price,
+      category: currentCategory,
+      image: '',
+      promo: false,
+      featured: false,
+      active: true,
+      stock: 0,
+      productType: categoryIsPizza ? 'custom' : 'normal',
+      slices: categoryIsPizza ? guessPizzaSlices(name) : 0,
+      maxFlavors: categoryIsPizza ? 2 : 1,
+      pizzaSize: categoryIsPizza ? guessPizzaSize(name) : '',
+      optionGroups: []
+    };
+
+    if (categoryIsPizza) pizzaProducts.push(product);
+    products.push(product);
+  });
+
+  pizzaProducts.forEach((product) => {
+    product.optionGroups = buildMenuOptionGroups(pizzaFlavors, pizzaBorders, pizzaExtras);
+    if (!product.optionGroups.length) product.optionGroups = presetOptionGroups('pizza');
+  });
+
+  if (!pizzaProducts.length && pizzaFlavors.length) {
+    products.push({
+      code: String(code++),
+      name: 'Pizza',
+      price: 0,
+      category: 'Pizzas',
+      image: '',
+      promo: false,
+      featured: false,
+      active: true,
+      stock: 0,
+      productType: 'custom',
+      slices: 8,
+      maxFlavors: 2,
+      pizzaSize: '',
+      optionGroups: buildMenuOptionGroups(pizzaFlavors, pizzaBorders, pizzaExtras)
+    });
+  }
+
+  return products;
+}
+
+function buildMenuOptionGroups(flavors, borders, extras) {
+  const groups = [];
+  if (flavors.length) {
+    groups.push({
+      id: crypto.randomUUID(),
+      name: 'Sabores',
+      min: 1,
+      max: 2,
+      pricing: 'highest',
+      options: flavors,
+      optionsText: pricedOptionsToText(flavors)
+    });
+  }
+  if (borders.length) {
+    groups.push({
+      id: crypto.randomUUID(),
+      name: 'Borda',
+      min: 0,
+      max: 1,
+      pricing: 'sum',
+      options: borders,
+      optionsText: pricedOptionsToText(borders)
+    });
+  }
+  if (extras.length) {
+    groups.push({
+      id: crypto.randomUUID(),
+      name: 'Adicionais',
+      min: 0,
+      max: 6,
+      pricing: 'sum',
+      options: extras,
+      optionsText: pricedOptionsToText(extras)
+    });
+  }
+  return groups;
+}
+
 function parsePdfPrice(value) {
   if (value.includes(',')) {
     return Number(value.replace(/\./g, '').replace(',', '.'));
@@ -2790,14 +2940,98 @@ function formatImportPrice(value) {
   return Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function sanitizeImportedItems(items) {
+function sanitizeImportedItems(items, fallbackCategory) {
   return (Array.isArray(items) ? items : [])
     .map((item) => ({
       code: String(item.code || '').trim(),
       name: String(item.name || '').trim(),
-      price: parseCurrencyValue(item.priceText ?? item.price)
+      price: parseCurrencyValue(item.priceText ?? item.price),
+      category: String(item.category || fallbackCategory || 'Sem categoria').trim(),
+      image: item.image || '',
+      promo: Boolean(item.promo),
+      featured: Boolean(item.featured),
+      active: item.active !== false,
+      stock: Number(item.stock || 0),
+      productType: isConfigurableProduct(item) ? 'custom' : 'normal',
+      slices: Number(item.slices || 0),
+      maxFlavors: Number(item.maxFlavors || 1),
+      pizzaSize: item.pizzaSize || '',
+      optionGroups: isConfigurableProduct(item) ? prepareOptionGroupsForSave(item.optionGroups || []) : []
     }))
-    .filter((item) => item.name && item.price > 0);
+    .filter((item) => item.name && (item.price > 0 || isConfigurableProduct(item)));
+}
+
+function emptyImportMessage(isMenuImport) {
+  return isMenuImport
+    ? 'Nao encontrei itens automaticamente. Tente um PDF com nomes e precos do cardapio em texto selecionavel.'
+    : 'Nao encontrei produtos automaticamente. Envie um PDF com codigo, nome e preco em linhas de produto.';
+}
+
+function cleanMenuLine(line) {
+  return String(line || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[•·]/g, '-')
+    .trim();
+}
+
+function isLikelyMenuHeading(line) {
+  const clean = line.replace(/[^A-Za-zÀ-ÿ0-9\s]/g, '').trim();
+  if (!clean || clean.length > 42) return false;
+  const lower = clean.toLowerCase();
+  if (/(total|subtotal|pagina|telefone|whatsapp|endereco)/.test(lower)) return false;
+  const letters = clean.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (letters.length < 4) return false;
+  const upperLetters = letters.replace(/[^A-ZÀ-Ý]/g, '').length;
+  return upperLetters / letters.length > 0.65 || /(pizza|pizzas|sabores|bordas|adicionais|lanches|bebidas|porcoes|marmitas|pasteis|salgados|doces)/i.test(clean);
+}
+
+function optionGroupFromHeading(value) {
+  if (/sabores?/i.test(value)) return 'Sabores';
+  if (/bordas?/i.test(value)) return 'Borda';
+  if (/(adicionais|acrescimos|complementos)/i.test(value)) return 'Adicionais';
+  return '';
+}
+
+function titleCaseMenu(value) {
+  return String(value || '').toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
+function isPizzaText(value) {
+  return /pizza|pizzas|broto|media|m[eé]dia|grande|familia|fam[ií]lia|gigante/i.test(String(value || ''));
+}
+
+function looksLikePizzaSize(value) {
+  return /(broto|pequena|media|m[eé]dia|grande|familia|fam[ií]lia|gigante|pizza)/i.test(String(value || ''));
+}
+
+function guessPizzaSize(value) {
+  const match = String(value || '').match(/(broto|pequena|media|m[eé]dia|grande|familia|fam[ií]lia|gigante)/i);
+  return match ? titleCaseMenu(match[1].replace('média', 'media').replace('família', 'familia')) : '';
+}
+
+function guessPizzaSlices(value) {
+  const size = guessPizzaSize(value).toLowerCase();
+  if (size.includes('broto') || size.includes('pequena')) return 4;
+  if (size.includes('media')) return 6;
+  if (size.includes('familia') || size.includes('gigante')) return 12;
+  if (size.includes('grande')) return 8;
+  return 0;
+}
+
+function normalizePizzaProductName(value) {
+  const size = guessPizzaSize(value);
+  return size ? `Pizza ${size}` : String(value || '').trim();
+}
+
+function splitMenuNameAndDescription(value) {
+  const clean = String(value || '').replace(/^[-\s]+/, '').trim();
+  const separator = clean.match(/\s[-:]\s/);
+  if (!separator) return { name: clean, description: '' };
+  const index = separator.index;
+  return {
+    name: clean.slice(0, index).trim(),
+    description: clean.slice(index + separator[0].length).trim()
+  };
 }
 
 function slugify(value) {
