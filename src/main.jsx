@@ -2010,7 +2010,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         }
       };
     });
-    setCartMessage(`${product.name} foi salvo no carrinho.`);
+    setCartMessage(`${product.name} esta no carrinho.`);
   };
   React.useEffect(() => {
     if (!cartMessage) return undefined;
@@ -2232,25 +2232,13 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 
         {checkoutStep === 'products' ? (
           <>
-            <section className="catalog-cart-summary">
-              <div className="cart-summary-title">
-                <span><ShoppingBag size={16} /> Carrinho</span>
-                <strong>{items.length ? `${cartQty} ${cartQty === 1 ? 'item' : 'itens'}` : 'Vazio'}</strong>
-              </div>
-              <div className="cart-summary-items">
-                {items.length ? items.slice(0, 3).map((item) => (
-                  <span key={item.cartKey || item.productId}>{item.qty}x {item.name}</span>
-                )) : <span>Selecione os produtos abaixo.</span>}
-                {items.length > 3 && <span>+{items.length - 3} itens</span>}
-              </div>
-              <div className="cart-summary-total">
-                <span>Total</span>
-                <strong>{BRL.format(total)}</strong>
-              </div>
-              <button className="orange-button" type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')}>
-                <ShoppingBag size={18} /> Finalizar
-              </button>
-            </section>
+            <button className={`floating-cart-button ${cartMessage ? 'pulse' : ''}`} type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')} aria-label="Abrir carrinho">
+              <span>
+                <ShoppingBag size={22} />
+                {cartQty > 0 && <b>{cartQty}</b>}
+              </span>
+              <strong>{items.length ? BRL.format(total) : 'Carrinho'}</strong>
+            </button>
             {orderHistory.length > 0 && (
               <div className="catalog-tabbar">
                 <button className={catalogTab === 'products' ? 'active' : ''} type="button" onClick={() => setCatalogTab('products')}>Produtos</button>
