@@ -2232,13 +2232,15 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
 
         {checkoutStep === 'products' ? (
           <>
-            <button className={`floating-cart-button ${cartMessage ? 'pulse' : ''}`} type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')} aria-label="Abrir carrinho">
-              <span>
-                <ShoppingBag size={22} />
-                {cartQty > 0 && <b>{cartQty}</b>}
-              </span>
-              <strong>{items.length ? BRL.format(total) : 'Carrinho'}</strong>
-            </button>
+            {!customizingProduct && (
+              <button className={`floating-cart-button ${cartMessage ? 'pulse' : ''}`} type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')} aria-label="Abrir carrinho">
+                <span>
+                  <ShoppingBag size={22} />
+                  {cartQty > 0 && <b>{cartQty}</b>}
+                </span>
+                <strong>{items.length ? BRL.format(total) : 'Carrinho'}</strong>
+              </button>
+            )}
             {orderHistory.length > 0 && (
               <div className="catalog-tabbar">
                 <button className={catalogTab === 'products' ? 'active' : ''} type="button" onClick={() => setCatalogTab('products')}>Produtos</button>

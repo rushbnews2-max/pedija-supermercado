@@ -1472,7 +1472,7 @@ input[type="file"] {
   position: fixed;
   right: clamp(16px, 5vw, 42px);
   bottom: 18px;
-  z-index: 40;
+  z-index: 20;
   min-height: 54px;
   display: inline-flex;
   align-items: center;
