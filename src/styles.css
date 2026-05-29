@@ -1474,13 +1474,13 @@ input[type="file"] {
   z-index: 12;
   min-height: 58px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
   align-items: center;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 10px;
+  border-radius: 8px;
+  padding: 10px 12px;
   box-shadow: 0 12px 34px rgba(15, 23, 42, .08);
 }
 
@@ -1494,14 +1494,28 @@ input[type="file"] {
   font-size: 11px;
 }
 
-.catalog-cart-summary > strong {
+.cart-summary-title span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cart-summary-title strong {
+  font-size: 16px;
+}
+
+.cart-summary-total {
+  text-align: right;
+}
+
+.cart-summary-total strong {
   color: var(--orange);
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .catalog-cart-summary .orange-button {
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 38px;
+  padding: 0 14px;
   border-radius: 8px;
   font-size: 14px;
 }
@@ -2242,6 +2256,55 @@ input[type="file"] {
   color: var(--green);
 }
 
+.payment-methods {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.payment-methods > strong {
+  font-size: 15px;
+}
+
+.payment-methods > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payment-methods button {
+  min-width: 0;
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2a44;
+  cursor: pointer;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.payment-methods button span {
+  font-weight: 900;
+}
+
+.payment-methods button small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.payment-methods button.active {
+  border-color: #fb923c;
+  background: #fff7ed;
+  color: var(--orange);
+  box-shadow: 0 8px 20px rgba(244, 81, 6, .12);
+}
+
 .pix-manual-box {
   display: grid;
   gap: 7px;
@@ -2260,6 +2323,9 @@ input[type="file"] {
 }
 
 .pix-manual-box span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 900;
 }
 
@@ -2394,6 +2460,10 @@ input[type="file"] {
     order: 3;
   }
 
+  .cart-summary-total {
+    text-align: left;
+  }
+
   .catalog-cart-summary .orange-button {
     grid-column: auto;
     width: auto;
@@ -2467,6 +2537,22 @@ input[type="file"] {
   .coupon-box,
   .checkout-action-row {
     grid-template-columns: 1fr;
+  }
+
+  .payment-methods > div {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-methods button {
+    min-height: 62px;
+    grid-template-columns: 26px minmax(0, 1fr);
+    align-content: center;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .payment-methods button small {
+    grid-column: 2;
   }
 
   .options-editor-head,

@@ -6,9 +6,11 @@ import {
   Box,
   Check,
   Clock,
+  CreditCard,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Banknote,
   Copy,
   Download,
   Edit3,
@@ -21,6 +23,7 @@ import {
   Phone,
   Plus,
   Printer,
+  QrCode,
   ReceiptText,
   Search,
   Settings,
@@ -38,6 +41,11 @@ import './styles.css';
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const PAYMENT_METHODS = [
+  { value: 'PIX', label: 'PIX', description: 'Pague pela chave da loja', icon: QrCode },
+  { value: 'Dinheiro', label: 'Dinheiro', description: 'Combine troco na entrega', icon: Banknote },
+  { value: 'Cartao', label: 'Cartao', description: 'Pague na entrega/retirada', icon: CreditCard }
+];
 const SEGMENTS = [
   ['supermercado', 'Supermercado'],
   ['pizzaria', 'Pizzaria'],
@@ -1968,6 +1976,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
   const deliveryFee = customer.deliveryMethod === 'Entrega' ? Number(selectedZone?.fee ?? store.deliveryFee ?? 0) : 0;
   const minOrder = Number(store.minOrder || 0);
   const total = Math.max(0, subtotal - discount + deliveryFee);
+  const cartQty = items.reduce((sum, item) => sum + item.qty, 0);
   const belowMinOrder = minOrder > 0 && subtotal < minOrder;
   const closedInfo = storeOpenInfo(store);
   const catalogCategories = groupProductsByCategory(activeProducts, store.categoryOrder);
@@ -2224,9 +2233,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         {checkoutStep === 'products' ? (
           <>
             <section className="catalog-cart-summary">
-              <div>
-                <span>Carrinho</span>
-                <strong>{items.length ? `${items.reduce((sum, item) => sum + item.qty, 0)} itens` : 'Vazio'}</strong>
+              <div className="cart-summary-title">
+                <span><ShoppingBag size={16} /> Carrinho</span>
+                <strong>{items.length ? `${cartQty} ${cartQty === 1 ? 'item' : 'itens'}` : 'Vazio'}</strong>
               </div>
               <div className="cart-summary-items">
                 {items.length ? items.slice(0, 3).map((item) => (
@@ -2234,7 +2243,10 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 )) : <span>Selecione os produtos abaixo.</span>}
                 {items.length > 3 && <span>+{items.length - 3} itens</span>}
               </div>
-              <strong>{BRL.format(total)}</strong>
+              <div className="cart-summary-total">
+                <span>Total</span>
+                <strong>{BRL.format(total)}</strong>
+              </div>
               <button className="orange-button" type="button" disabled={!items.length} onClick={() => setCheckoutStep('address')}>
                 <ShoppingBag size={18} /> Finalizar
               </button>
@@ -2394,7 +2406,21 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
               </>
             ) : (
               <>
-                <label>Pagamento<select value={customer.payment} onChange={(event) => setCustomer({ ...customer, payment: event.target.value })}><option>PIX</option><option>Dinheiro</option><option>Cartao</option></select></label>
+                <section className="payment-methods">
+                  <strong>Escolha a forma de pagamento</strong>
+                  <div>
+                    {PAYMENT_METHODS.map((method) => {
+                      const Icon = method.icon;
+                      return (
+                        <button className={customer.payment === method.value ? 'active' : ''} type="button" key={method.value} onClick={() => setCustomer({ ...customer, payment: method.value })}>
+                          <Icon size={20} />
+                          <span>{method.label}</span>
+                          <small>{method.description}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
                 <div className="coupon-box">
                   <label>Cupom<input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Ex: 10OFF" /></label>
                   <button className="ghost-button" type="button" onClick={applyCoupon}>Aplicar</button>
@@ -2403,9 +2429,10 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
                 </div>
                 {customer.payment === 'PIX' && (
                   <div className="pix-manual-box">
-                    <span>Pagamento via PIX manual</span>
+                    <span><QrCode size={18} /> Pagamento via PIX manual</span>
                     {store.pixKey ? (
                       <>
+                        <small>Chave PIX</small>
                         <strong>{store.pixKey}</strong>
                         <small>{store.pixName || store.name}</small>
                         <button className="ghost-button" type="button" onClick={() => copyPixKey(store.pixKey)}>Copiar chave PIX</button>
