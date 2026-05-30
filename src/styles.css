@@ -48,7 +48,7 @@ a {
 
 .marketing-site {
   min-height: 100vh;
-  background: #f8fafc;
+  background: #f7f9fc;
   color: var(--ink);
 }
 
@@ -59,7 +59,7 @@ a {
   justify-content: space-between;
   gap: 18px;
   padding: 0 6vw;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.9);
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
@@ -107,6 +107,12 @@ a {
   background: #fff;
 }
 
+.ghost-cta.dark {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
 .marketing-hero {
   min-height: calc(100vh - 76px);
   display: grid;
@@ -115,11 +121,25 @@ a {
   gap: 56px;
   padding: 58px 6vw 72px;
   background:
-    linear-gradient(135deg, rgba(244, 81, 6, 0.08), rgba(18, 165, 100, 0.08)),
-    #f8fafc;
+    radial-gradient(circle at 12% 16%, rgba(244, 81, 6, 0.18), transparent 32%),
+    radial-gradient(circle at 88% 12%, rgba(18, 165, 100, 0.2), transparent 30%),
+    linear-gradient(135deg, #fffaf6 0%, #f7fbff 48%, #eefaf4 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.marketing-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 120px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.72));
+  pointer-events: none;
 }
 
 .hero-copy {
+  position: relative;
+  z-index: 1;
   max-width: 680px;
 }
 
@@ -139,6 +159,7 @@ a {
   margin: 0;
   font-size: clamp(44px, 8vw, 92px);
   line-height: 0.95;
+  letter-spacing: 0;
 }
 
 .hero-copy p {
@@ -178,12 +199,22 @@ a {
 }
 
 .product-visual {
+  position: relative;
+  z-index: 1;
   min-height: 520px;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 32px 90px rgba(15, 23, 42, 0.16);
   overflow: hidden;
+}
+
+.visual-glow {
+  position: absolute;
+  inset: 58px 0 auto;
+  height: 190px;
+  background: linear-gradient(135deg, rgba(244, 81, 6, 0.14), rgba(18, 165, 100, 0.12));
+  pointer-events: none;
 }
 
 .visual-topbar {
@@ -195,6 +226,30 @@ a {
   border-bottom: 1px solid var(--line);
   background: #0b172a;
   color: #fff;
+}
+
+.visual-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 0;
+}
+
+.visual-toolbar strong {
+  font-size: 20px;
+}
+
+.visual-toolbar em {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: #087348;
+  padding: 0 10px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .visual-topbar span {
@@ -214,6 +269,7 @@ a {
 }
 
 .visual-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
@@ -260,11 +316,43 @@ a {
   font-weight: 900;
 }
 
+.visual-card button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--orange);
+  color: #fff;
+  font-weight: 900;
+}
+
+.brand-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  background: #dbe3ee;
+  border-top: 1px solid #dbe3ee;
+  border-bottom: 1px solid #dbe3ee;
+}
+
+.brand-strip span {
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #334155;
+  font-weight: 900;
+}
+
 .marketing-band,
-.segments-band {
+.segments-band,
+.workflow-band {
   padding: 76px 6vw;
   background: #fff;
   border-top: 1px solid var(--line);
+}
+
+.workflow-band {
+  background: #f8fafc;
 }
 
 .segments-band {
@@ -301,6 +389,7 @@ a {
   border-radius: 8px;
   padding: 22px;
   background: #fff;
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.05);
 }
 
 .feature-item svg {
@@ -315,6 +404,45 @@ a {
   margin: 0;
   color: #5b687a;
   line-height: 1.5;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.workflow-step {
+  min-height: 220px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  padding: 24px;
+  background: #fff;
+}
+
+.workflow-step span {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #07172d;
+  color: #fff;
+  font-weight: 950;
+}
+
+.workflow-step h3 {
+  margin: 6px 0 0;
+  font-size: 22px;
+}
+
+.workflow-step p {
+  margin: 0;
+  color: #5b687a;
+  line-height: 1.55;
 }
 
 .segment-list {
@@ -343,6 +471,13 @@ a {
   padding: 56px 6vw;
   background: #07172d;
   color: #fff;
+}
+
+.cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
 }
 
 .marketing-cta p {
@@ -2756,6 +2891,12 @@ input[type="file"] {
     min-height: auto;
   }
 
+  .visual-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   .visual-grid {
     grid-template-columns: 1fr;
   }
@@ -2766,11 +2907,14 @@ input[type="file"] {
 
   .marketing-band,
   .segments-band,
+  .workflow-band,
   .marketing-cta {
     padding: 42px 16px;
   }
 
-  .feature-grid {
+  .feature-grid,
+  .workflow-grid,
+  .brand-strip {
     grid-template-columns: 1fr;
   }
 
@@ -2779,7 +2923,9 @@ input[type="file"] {
     flex-direction: column;
   }
 
-  .marketing-cta .orange-button {
+  .cta-actions,
+  .marketing-cta .orange-button,
+  .marketing-cta .ghost-cta {
     width: 100%;
   }
 

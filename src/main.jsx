@@ -364,6 +364,11 @@ function MarketingSite() {
     ['WhatsApp integrado', 'Links de catalogo, comprovante do PIX manual, status e contato rapido com o cliente.', MessageCircle]
   ];
   const segments = ['Supermercados', 'Pizzarias', 'Lanchonetes', 'Padarias', 'Restaurantes', 'Farmacias', 'Distribuidoras'];
+  const steps = [
+    ['01', 'Crie o cliente', 'Cadastre o estabelecimento, segmento, usuario, senha e link de acesso.'],
+    ['02', 'Monte o catalogo', 'Organize produtos por categoria, sabores, bordas, cupons, PIX e entrega.'],
+    ['03', 'Receba pedidos', 'O painel avisa, imprime no PDV e ajuda a acompanhar cada status.']
+  ];
 
   return (
     <main className="marketing-site">
@@ -375,6 +380,7 @@ function MarketingSite() {
         <div>
           <a href="#recursos">Recursos</a>
           <a href="#segmentos">Segmentos</a>
+          <a href="#como-funciona">Como funciona</a>
           <a className="nav-login" href="/admin"><Shield size={17} /> Painel administrativo</a>
         </div>
       </nav>
@@ -383,7 +389,7 @@ function MarketingSite() {
         <div className="hero-copy">
           <span className="hero-kicker">Delivery proprio para comercios locais</span>
           <h1>PediJah</h1>
-          <p>Um sistema comercial para vender por catalogo online, receber pedidos no painel, imprimir automaticamente e organizar cada estabelecimento do seu jeito.</p>
+          <p>Venda por catalogo online, receba pedidos no painel, imprima automaticamente no PDV e administre varios clientes em uma plataforma pronta para crescer.</p>
           <div className="hero-actions">
             <a className="orange-button" href="/admin"><Shield size={18} /> Entrar no painel</a>
             <a className="ghost-cta" href="/catalogo/super-feliz"><Eye size={18} /> Ver catalogo exemplo</a>
@@ -396,16 +402,22 @@ function MarketingSite() {
         </div>
 
         <div className="product-visual" aria-label="Previa visual do painel PediJah">
+          <div className="visual-glow"></div>
           <div className="visual-topbar">
             <span></span><span></span><span></span>
             <b>Painel PediJah</b>
+          </div>
+          <div className="visual-toolbar">
+            <strong>Pedidos de hoje</strong>
+            <em>Ao vivo</em>
           </div>
           <div className="visual-grid">
             <article className="visual-card visual-order">
               <small>Novo pedido</small>
               <strong>#128</strong>
-              <p>Pizza grande, borda catupiry e refrigerante.</p>
+              <p>Pizza grande, borda catupiry, refrigerante e pagamento via PIX.</p>
               <span>R$ 89,90</span>
+              <button>Separar pedido</button>
             </article>
             <article className="visual-card">
               <small>Catalogo</small>
@@ -421,6 +433,15 @@ function MarketingSite() {
         </div>
       </section>
 
+      <section className="brand-strip" aria-label="Segmentos em destaque">
+        <span>Mercado</span>
+        <span>Pizzaria</span>
+        <span>Padaria</span>
+        <span>Lanchonete</span>
+        <span>Distribuidora</span>
+        <span>Restaurante</span>
+      </section>
+
       <section className="marketing-band" id="recursos">
         <div className="section-title">
           <h2>Recursos para vender melhor</h2>
@@ -430,6 +451,22 @@ function MarketingSite() {
           {features.map(([title, text, Icon]) => (
             <article className="feature-item" key={title}>
               <Icon size={24} />
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="workflow-band" id="como-funciona">
+        <div className="section-title">
+          <h2>Do cadastro ao pedido em poucos passos</h2>
+          <p>O PediJah foi pensado para quem quer vender para varios tipos de comercio sem montar tudo do zero a cada cliente.</p>
+        </div>
+        <div className="workflow-grid">
+          {steps.map(([number, title, text]) => (
+            <article className="workflow-step" key={number}>
+              <span>{number}</span>
               <h3>{title}</h3>
               <p>{text}</p>
             </article>
@@ -452,7 +489,10 @@ function MarketingSite() {
           <h2>Venda com seu proprio link</h2>
           <p>Use o dominio do PediJah para divulgar catalogos e gerenciar seus clientes em um painel master.</p>
         </div>
-        <a className="orange-button" href="/admin"><Shield size={18} /> Acessar painel master</a>
+        <div className="cta-actions">
+          <a className="orange-button" href="/admin"><Shield size={18} /> Acessar painel master</a>
+          <a className="ghost-cta dark" href="https://wa.me/5566996191408?text=Ola,%20quero%20conhecer%20o%20PediJah" target="_blank" rel="noreferrer"><MessageCircle size={18} /> Falar no WhatsApp</a>
+        </div>
       </section>
     </main>
   );
