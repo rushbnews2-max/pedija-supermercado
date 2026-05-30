@@ -1967,6 +1967,20 @@ input[type="file"] {
   margin: 0;
 }
 
+.demo-catalog-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 10px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .catalog-hero .logo-mark {
   width: 74px;
 }
@@ -2302,6 +2316,31 @@ input[type="file"] {
   color: #9a3412;
   border-radius: 8px;
   margin-bottom: 14px;
+}
+
+.demo-catalog-notice {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  margin-bottom: 14px;
+}
+
+.demo-catalog-notice strong,
+.demo-catalog-notice span {
+  display: block;
+}
+
+.demo-catalog-notice span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 2px;
 }
 
 .cart-toast {

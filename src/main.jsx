@@ -207,6 +207,130 @@ const initialStore = {
   pizzaBorders: []
 };
 
+const demoStore = {
+  name: 'Loja Demonstracao PediJah',
+  type: 'Catalogo exemplo',
+  phone: '66996191408',
+  hours: '08:00 - 22:00',
+  status: 'Aberto',
+  address: 'Exemplo comercial',
+  catalogSlug: 'catalogo-exemplo',
+  segment: 'supermercado',
+  bannerText: 'PediJah Demo',
+  bannerUrl: '',
+  logoUrl: '',
+  pixKey: 'pix-demo@pedijah.com.br',
+  pixName: 'PediJah Demonstracao',
+  deliveryFee: 5,
+  minOrder: 20,
+  deliveryAreas: 'Centro, Jardim das Flores, Bela Vista',
+  deliveryZones: [
+    { name: 'Centro', fee: 5 },
+    { name: 'Jardim das Flores', fee: 7 },
+    { name: 'Bela Vista', fee: 9 }
+  ],
+  categoryOrder: ['Destaques', 'Pizzas', 'Bebidas', 'Padaria', 'Mercado'],
+  pizzaFlavors: [
+    { name: 'Mussarela', ingredients: 'molho de tomate, mussarela e oregano', price: 0 },
+    { name: 'Calabresa', ingredients: 'calabresa fatiada, cebola, mussarela e oregano', price: 2 },
+    { name: 'Frango com catupiry', ingredients: 'frango desfiado, catupiry, milho e mussarela', price: 5 }
+  ],
+  pizzaBorders: [
+    { name: 'Sem borda', price: 0 },
+    { name: 'Catupiry', price: 6 },
+    { name: 'Cheddar', price: 7 }
+  ]
+};
+
+const demoProducts = [
+  {
+    id: 'demo-pizza-g',
+    code: 'D001',
+    name: 'Pizza Grande',
+    category: 'Pizzas',
+    price: 54.9,
+    active: true,
+    featured: true,
+    promo: true,
+    stock: 99,
+    sortOrder: 1,
+    image: '',
+    productType: 'pizza',
+    pizzaSize: 'Grande',
+    slices: 8,
+    maxFlavors: 2
+  },
+  {
+    id: 'demo-pizza-m',
+    code: 'D002',
+    name: 'Pizza Media',
+    category: 'Pizzas',
+    price: 44.9,
+    active: true,
+    featured: false,
+    promo: false,
+    stock: 99,
+    sortOrder: 2,
+    image: '',
+    productType: 'pizza',
+    pizzaSize: 'Media',
+    slices: 6,
+    maxFlavors: 2
+  },
+  {
+    id: 'demo-suco',
+    code: 'D003',
+    name: 'Suco natural 500ml',
+    category: 'Bebidas',
+    price: 8.9,
+    active: true,
+    featured: true,
+    promo: false,
+    stock: 40,
+    sortOrder: 1,
+    image: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=400&q=80'
+  },
+  {
+    id: 'demo-pao',
+    code: 'D004',
+    name: 'Pao frances 10 unidades',
+    category: 'Padaria',
+    price: 9.5,
+    active: true,
+    featured: true,
+    promo: true,
+    stock: 70,
+    sortOrder: 1,
+    image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=400&q=80'
+  },
+  {
+    id: 'demo-cesta',
+    code: 'D005',
+    name: 'Cesta cafe da manha',
+    category: 'Destaques',
+    price: 69.9,
+    active: true,
+    featured: true,
+    promo: true,
+    stock: 15,
+    sortOrder: 1,
+    image: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?auto=format&fit=crop&w=400&q=80'
+  },
+  {
+    id: 'demo-arroz',
+    code: 'D006',
+    name: 'Arroz tipo 1 5kg',
+    category: 'Mercado',
+    price: 26.9,
+    active: true,
+    featured: false,
+    promo: false,
+    stock: 35,
+    sortOrder: 1,
+    image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80'
+  }
+];
+
 function LogoMark({ store }) {
   if (store?.logoUrl) {
     return (
@@ -218,7 +342,7 @@ function LogoMark({ store }) {
 
   return (
     <div className="logo-mark" aria-hidden="true">
-      <span>SF</span>
+      <span>{(store?.name || 'PediJah').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
     </div>
   );
 }
@@ -392,7 +516,7 @@ function MarketingSite() {
           <p>Venda por catalogo online, receba pedidos no painel, imprima automaticamente no PDV e administre varios clientes em uma plataforma pronta para crescer.</p>
           <div className="hero-actions">
             <a className="orange-button" href="/admin"><Shield size={18} /> Entrar no painel</a>
-            <a className="ghost-cta" href="/catalogo/super-feliz"><Eye size={18} /> Ver catalogo exemplo</a>
+            <a className="ghost-cta" href="/catalogo-exemplo"><Eye size={18} /> Ver catalogo exemplo</a>
           </div>
           <div className="hero-stats" aria-label="Destaques do sistema">
             <span><strong>24h</strong> catalogo online</span>
@@ -506,6 +630,7 @@ function App() {
   const adminSlug = getAdminSlug();
   const [page, setPage] = React.useState(() => {
     if (window.location.pathname === '/') return 'home';
+    if (window.location.pathname.startsWith('/catalogo-exemplo')) return 'demo-catalog';
     if (window.location.pathname.startsWith('/catalogo')) return 'catalogo';
     if (window.location.pathname.startsWith('/imprimir/pedido')) return 'print';
     if (window.location.pathname.startsWith('/pedido')) return 'pedido';
@@ -527,10 +652,11 @@ function App() {
   const lastOrderId = React.useRef(0);
   const pageRef = React.useRef(page);
   const isLanding = page === 'home';
+  const isDemoCatalog = page === 'demo-catalog';
   const isCatalog = page === 'catalogo';
   const isTracking = page === 'pedido';
   const isPrintPage = page === 'print';
-  const isPublicPage = isLanding || isCatalog || isTracking || isPrintPage;
+  const isPublicPage = isLanding || isDemoCatalog || isCatalog || isTracking || isPrintPage;
 
   React.useEffect(() => {
     pageRef.current = page;
@@ -541,6 +667,8 @@ function App() {
     setLoading(true);
     const source = isLanding
       ? Promise.resolve({ store: initialStore, products: [], orders: [], coupons: [] })
+      : isDemoCatalog
+      ? Promise.resolve({ store: demoStore, products: demoProducts, orders: [], coupons: [] })
       : isPublicPage
       ? api(`/api/public${routeSlug ? `?slug=${encodeURIComponent(routeSlug)}` : ''}`).then(async (data) => {
         if (!isTracking && !isPrintPage) return { ...data, orders: [] };
@@ -614,7 +742,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [authToken, adminSlug, isCatalog, isLanding, isPrintPage, isPublicPage, isTracking, routeSlug]);
+  }, [authToken, adminSlug, isCatalog, isDemoCatalog, isLanding, isPrintPage, isPublicPage, isTracking, routeSlug]);
 
   React.useEffect(() => {
     if (loading || isPublicPage || !authToken || role !== 'store') return undefined;
@@ -777,6 +905,19 @@ function App() {
 
   if (isLanding) {
     return <MarketingSite />;
+  }
+
+  if (isDemoCatalog) {
+    return (
+      <Catalog
+        store={demoStore}
+        products={demoProducts}
+        coupons={[]}
+        onOrder={async () => 'DEMO'}
+        storeSlug="catalogo-exemplo"
+        demoMode
+      />
+    );
   }
 
   if (isCatalog) {
@@ -2079,7 +2220,7 @@ function PrintOrderPage({ store, order, loading }) {
   );
 }
 
-function Catalog({ store, products, coupons, onOrder, storeSlug }) {
+function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = false }) {
   const historyStorageKey = `pedija-order-history:${storeSlug || store.catalogSlug || store.name || 'catalogo'}`;
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
@@ -2311,6 +2452,34 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         ? 'Retirada no balcao'
         : [customer.address, customer.deliveryNeighborhood].filter(Boolean).join(' - ');
       const formattedPhone = formatBrazilPhone(customer.phone);
+      if (demoMode) {
+        const savedOrder = {
+          id: 'DEMO',
+          customer: customer.name,
+          phone: formattedPhone,
+          address,
+          payment: customer.payment,
+          deliveryMethod: customer.deliveryMethod,
+          deliveryNeighborhood: customer.deliveryNeighborhood,
+          notes: customer.notes,
+          substitution: customer.substitution,
+          location: deliveryLocation,
+          total,
+          items,
+          coupon: appliedCoupon ? appliedCoupon.code : '',
+          discount,
+          deliveryFee,
+          paymentStatus: 'Demonstracao'
+        };
+        setSentOrder(savedOrder);
+        setCart({});
+        setProductNotes({});
+        setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
+        setDeliveryLocation(null);
+        setLocationStatus('');
+        setCheckoutStep('products');
+        return;
+      }
       const orderId = await onOrder({
         customer: customer.name,
         phone: formattedPhone,
@@ -2352,6 +2521,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
         <div>
           <h1>{store.name}</h1>
           <p>{store.type} aberto das {store.hours}</p>
+          {demoMode && <span className="demo-catalog-pill">Catalogo demonstrativo - nao gera pedido real</span>}
         </div>
         <LogoMark store={store} />
       </header>
@@ -2360,13 +2530,28 @@ function Catalog({ store, products, coupons, onOrder, storeSlug }) {
           <div className="success-message">
             <Check size={20} />
             <div>
-              <strong>Pedido enviado</strong>
-              <span>Pedido #{sentOrder.id} recebido. Total {BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.</span>
+              <strong>{demoMode ? 'Simulacao concluida' : 'Pedido enviado'}</strong>
+              <span>{demoMode ? `Este catalogo e apenas demonstrativo. Nenhum pedido real foi enviado. Total simulado ${BRL.format(sentOrder.total)}.` : `Pedido #${sentOrder.id} recebido. Total ${BRL.format(sentOrder.total)}. Aguarde a confirmacao do mercado.`}</span>
               <div className="success-actions">
-                <a href={`/pedido/${sentOrder.id}?slug=${encodeURIComponent(storeSlug || store.catalogSlug || '')}`}>Acompanhar status</a>
-                <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
-                {sentOrder.payment === 'PIX' && <a href={buildPaymentProofWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar comprovante</a>}
+                {demoMode ? (
+                  <a href="/admin">Conhecer o painel administrativo</a>
+                ) : (
+                  <>
+                    <a href={`/pedido/${sentOrder.id}?slug=${encodeURIComponent(storeSlug || store.catalogSlug || '')}`}>Acompanhar status</a>
+                    <a href={buildStoreOrderWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar pelo WhatsApp</a>
+                    {sentOrder.payment === 'PIX' && <a href={buildPaymentProofWhatsapp(store, sentOrder)} target="_blank" rel="noreferrer">Enviar comprovante</a>}
+                  </>
+                )}
               </div>
+            </div>
+          </div>
+        )}
+        {demoMode && (
+          <div className="demo-catalog-notice">
+            <Eye size={20} />
+            <div>
+              <strong>Catalogo de exemplo</strong>
+              <span>Voce pode testar produtos, carrinho e checkout. O pedido nao cai em nenhum estabelecimento real.</span>
             </div>
           </div>
         )}
