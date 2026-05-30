@@ -401,34 +401,37 @@ function MarketingSite() {
           </div>
         </div>
 
-        <div className="product-visual" aria-label="Previa visual do painel PediJah">
-          <div className="visual-glow"></div>
-          <div className="visual-topbar">
-            <span></span><span></span><span></span>
-            <b>Painel PediJah</b>
-          </div>
-          <div className="visual-toolbar">
-            <strong>Pedidos de hoje</strong>
-            <em>Ao vivo</em>
-          </div>
-          <div className="visual-grid">
-            <article className="visual-card visual-order">
-              <small>Novo pedido</small>
-              <strong>#128</strong>
-              <p>Pizza grande, borda catupiry, refrigerante e pagamento via PIX.</p>
-              <span>R$ 89,90</span>
-              <button>Separar pedido</button>
-            </article>
-            <article className="visual-card">
-              <small>Catalogo</small>
-              <strong>Online</strong>
-              <p>Produtos por categoria e carrinho flutuante.</p>
-            </article>
-            <article className="visual-card">
-              <small>Impressao</small>
-              <strong>1 via</strong>
-              <p>Cupom do pedido direto na termica.</p>
-            </article>
+        <div className="hero-media">
+          <img src="/pedijah-commerce-hero.png" alt="Comerciantes preparando pedidos com produtos de mercado, pizzaria e padaria" />
+          <div className="product-visual" aria-label="Previa visual do painel PediJah">
+            <div className="visual-glow"></div>
+            <div className="visual-topbar">
+              <span></span><span></span><span></span>
+              <b>Painel PediJah</b>
+            </div>
+            <div className="visual-toolbar">
+              <strong>Pedidos de hoje</strong>
+              <em>Ao vivo</em>
+            </div>
+            <div className="visual-grid">
+              <article className="visual-card visual-order">
+                <small>Novo pedido</small>
+                <strong>#128</strong>
+                <p>Pizza grande, borda catupiry, refrigerante e pagamento via PIX.</p>
+                <span>R$ 89,90</span>
+                <button>Separar pedido</button>
+              </article>
+              <article className="visual-card">
+                <small>Catalogo</small>
+                <strong>Online</strong>
+                <p>Produtos por categoria e carrinho flutuante.</p>
+              </article>
+              <article className="visual-card">
+                <small>Impressao</small>
+                <strong>1 via</strong>
+                <p>Cupom do pedido direto na termica.</p>
+              </article>
+            </div>
           </div>
         </div>
       </section>
