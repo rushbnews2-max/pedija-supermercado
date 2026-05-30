@@ -1,7 +1,7 @@
 @echo off
 set "SLUG=sasc-distribuidora"
-set "URL=https://pedija.up.railway.app/admin/%SLUG%"
-set "PROFILE=%LOCALAPPDATA%\PediJaImpressao\%SLUG%"
+set "URL=https://pedijah.com.br/admin/%SLUG%"
+set "PROFILE=%LOCALAPPDATA%\PediJahImpressao\%SLUG%"
 set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 set "CHROME_X86=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
 set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"

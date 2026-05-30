@@ -410,7 +410,7 @@ app.get('/api/downloads/print-installer', async (req, res) => {
   const scoped = getStoreBySession(withPlatformDefaults(db), session);
   const slug = slugify(scoped.store.catalogSlug || 'catalogo');
   const baseUrl = publicBaseUrl(req);
-  const fileName = `PediJa-Impressao-${slug}.bat`;
+  const fileName = `PediJah-Impressao-${slug}.bat`;
   const installer = buildPrintInstallerBat({ slug, baseUrl });
 
   res.setHeader('Content-Type', 'application/octet-stream');
@@ -477,7 +477,7 @@ app.get(/.*/, (_req, res) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`PediJa online server running on port ${port}`);
+  console.log(`PediJah online server running on port ${port}`);
 });
 
 function requireAdmin(req, res, next) {
@@ -876,7 +876,7 @@ function segmentLabel(segment) {
 function publicBaseUrl(req) {
   const forwardedProto = req.get('x-forwarded-proto');
   const proto = forwardedProto || req.protocol || 'https';
-  const host = req.get('host') || 'pedija.up.railway.app';
+  const host = req.get('host') || 'pedijah.com.br';
   return `${proto}://${host}`.replace(/\/+$/, '');
 }
 
@@ -886,12 +886,12 @@ setlocal\r
 set "SLUG=${slug}"\r
 set "BASE_URL=${baseUrl}"\r
 set "URL=%BASE_URL%/admin/%SLUG%"\r
-set "PROFILE=%LOCALAPPDATA%\\PediJaImpressao\\%SLUG%"\r
+set "PROFILE=%LOCALAPPDATA%\\PediJahImpressao\\%SLUG%"\r
 set "DESKTOP=%USERPROFILE%\\Desktop"\r
-set "LAUNCHER=%LOCALAPPDATA%\\PediJaImpressao\\abrir-%SLUG%.bat"\r
-set "SHORTCUT=%DESKTOP%\\PediJa Impressao %SLUG%.lnk"\r
+set "LAUNCHER=%LOCALAPPDATA%\\PediJahImpressao\\abrir-%SLUG%.bat"\r
+set "SHORTCUT=%DESKTOP%\\PediJah Impressao %SLUG%.lnk"\r
 \r
-mkdir "%LOCALAPPDATA%\\PediJaImpressao" >nul 2>nul\r
+mkdir "%LOCALAPPDATA%\\PediJahImpressao" >nul 2>nul\r
 \r
 (\r
 echo @echo off\r
@@ -921,11 +921,11 @@ echo echo Nao encontrei Google Chrome nem Microsoft Edge nos caminhos padrao.\r
 echo pause\r
 ) > "%LAUNCHER%"\r
 \r
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');$s.TargetPath='%LAUNCHER%';$s.WorkingDirectory='%LOCALAPPDATA%\\PediJaImpressao';$s.WindowStyle=7;$s.Description='PediJa Impressao Direta';$s.Save()"\r
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');$s.TargetPath='%LAUNCHER%';$s.WorkingDirectory='%LOCALAPPDATA%\\PediJahImpressao';$s.WindowStyle=7;$s.Description='PediJah Impressao Direta';$s.Save()"\r
 \r
 echo.\r
 echo Instalador concluido.\r
-echo Atalho criado na Area de Trabalho: PediJa Impressao %SLUG%\r
+echo Atalho criado na Area de Trabalho: PediJah Impressao %SLUG%\r
 echo.\r
 echo Antes de usar, deixe a impressora termica como impressora padrao do Windows.\r
 echo Abra o atalho, faca login uma vez e marque "Imprimir novos pedidos automaticamente".\r

@@ -267,7 +267,7 @@ function Sidebar({ page, setPage, onLogout, role }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <strong><span>Pedi</span>Ja</strong>
+        <strong><span>Pedi</span>Jah</strong>
         <small>Sistema de Pedidos</small>
       </div>
       <nav>
@@ -328,7 +328,7 @@ function LoginPage({ onLogin, loading, adminSlug }) {
     <main className="login-page" style={getLoginBackgroundStyle(loginStore || { segment: adminSlug ? 'estabelecimento' : 'master' })}>
       <form className="login-card" onSubmit={submit}>
         <div className="brand login-brand">
-          <strong><span>Pedi</span>Ja</strong>
+          <strong><span>Pedi</span>Jah</strong>
           <small>Painel administrativo</small>
         </div>
         <h1>Entrar no sistema</h1>
@@ -369,7 +369,7 @@ function MarketingSite() {
     <main className="marketing-site">
       <nav className="marketing-nav">
         <a className="marketing-brand" href="/">
-          <strong><span>Pedi</span>Ja</strong>
+          <strong><span>Pedi</span>Jah</strong>
           <small>Sistema de pedidos</small>
         </a>
         <div>
@@ -382,7 +382,7 @@ function MarketingSite() {
       <section className="marketing-hero">
         <div className="hero-copy">
           <span className="hero-kicker">Delivery proprio para comercios locais</span>
-          <h1>PediJa</h1>
+          <h1>PediJah</h1>
           <p>Um sistema comercial para vender por catalogo online, receber pedidos no painel, imprimir automaticamente e organizar cada estabelecimento do seu jeito.</p>
           <div className="hero-actions">
             <a className="orange-button" href="/admin"><Shield size={18} /> Entrar no painel</a>
@@ -395,10 +395,10 @@ function MarketingSite() {
           </div>
         </div>
 
-        <div className="product-visual" aria-label="Previa visual do painel PediJa">
+        <div className="product-visual" aria-label="Previa visual do painel PediJah">
           <div className="visual-topbar">
             <span></span><span></span><span></span>
-            <b>Painel PediJa</b>
+            <b>Painel PediJah</b>
           </div>
           <div className="visual-grid">
             <article className="visual-card visual-order">
@@ -450,7 +450,7 @@ function MarketingSite() {
       <section className="marketing-cta">
         <div>
           <h2>Venda com seu proprio link</h2>
-          <p>Use o dominio do PediJa para divulgar catalogos e gerenciar seus clientes em um painel master.</p>
+          <p>Use o dominio do PediJah para divulgar catalogos e gerenciar seus clientes em um painel master.</p>
         </div>
         <a className="orange-button" href="/admin"><Shield size={18} /> Acessar painel master</a>
       </section>
@@ -753,7 +753,7 @@ function App() {
       <main className="login-page">
         <section className="login-card">
           <div className="brand login-brand">
-            <strong><span>Pedi</span>Ja</strong>
+            <strong><span>Pedi</span>Jah</strong>
             <small>Painel administrativo</small>
           </div>
           <h1>Carregando...</h1>
@@ -1050,7 +1050,7 @@ function Stores({ store, setStore, setPage }) {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const disposition = response.headers.get('content-disposition') || '';
-      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `PediJa-Impressao-${store.catalogSlug || 'loja'}.bat`;
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `PediJah-Impressao-${store.catalogSlug || 'loja'}.bat`;
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;

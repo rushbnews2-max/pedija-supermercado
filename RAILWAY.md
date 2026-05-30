@@ -8,7 +8,7 @@ Opcao recomendada:
 2. Envie este projeto para o repositorio.
 3. No Railway, clique em **New Project**.
 4. Escolha **Deploy from GitHub repo**.
-5. Selecione o repositorio do PediJa.
+5. Selecione o repositorio do PediJah.
 
 O Railway vai detectar o `Dockerfile` e usar a configuracao do `railway.json`.
 
