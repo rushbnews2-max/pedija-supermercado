@@ -356,10 +356,113 @@ function PageHeader({ title, subtitle, children }) {
   );
 }
 
+function MarketingSite() {
+  const features = [
+    ['Pedidos online', 'Catalogo com carrinho, checkout por etapas e pedidos chegando direto no painel.', ShoppingBag],
+    ['Multi segmentos', 'Mercado, pizzaria, lanchonete, padaria, restaurante, farmacia e distribuidora.', Store],
+    ['Impressao termica', 'Pedidos podem sair direto na impressora do PDV com uma via limpa e organizada.', Printer],
+    ['WhatsApp integrado', 'Links de catalogo, comprovante do PIX manual, status e contato rapido com o cliente.', MessageCircle]
+  ];
+  const segments = ['Supermercados', 'Pizzarias', 'Lanchonetes', 'Padarias', 'Restaurantes', 'Farmacias', 'Distribuidoras'];
+
+  return (
+    <main className="marketing-site">
+      <nav className="marketing-nav">
+        <a className="marketing-brand" href="/">
+          <strong><span>Pedi</span>Ja</strong>
+          <small>Sistema de pedidos</small>
+        </a>
+        <div>
+          <a href="#recursos">Recursos</a>
+          <a href="#segmentos">Segmentos</a>
+          <a className="nav-login" href="/admin"><Shield size={17} /> Painel administrativo</a>
+        </div>
+      </nav>
+
+      <section className="marketing-hero">
+        <div className="hero-copy">
+          <span className="hero-kicker">Delivery proprio para comercios locais</span>
+          <h1>PediJa</h1>
+          <p>Um sistema comercial para vender por catalogo online, receber pedidos no painel, imprimir automaticamente e organizar cada estabelecimento do seu jeito.</p>
+          <div className="hero-actions">
+            <a className="orange-button" href="/admin"><Shield size={18} /> Entrar no painel</a>
+            <a className="ghost-cta" href="/catalogo/super-feliz"><Eye size={18} /> Ver catalogo exemplo</a>
+          </div>
+          <div className="hero-stats" aria-label="Destaques do sistema">
+            <span><strong>24h</strong> catalogo online</span>
+            <span><strong>PIX</strong> manual com comprovante</span>
+            <span><strong>PDV</strong> impressao termica</span>
+          </div>
+        </div>
+
+        <div className="product-visual" aria-label="Previa visual do painel PediJa">
+          <div className="visual-topbar">
+            <span></span><span></span><span></span>
+            <b>Painel PediJa</b>
+          </div>
+          <div className="visual-grid">
+            <article className="visual-card visual-order">
+              <small>Novo pedido</small>
+              <strong>#128</strong>
+              <p>Pizza grande, borda catupiry e refrigerante.</p>
+              <span>R$ 89,90</span>
+            </article>
+            <article className="visual-card">
+              <small>Catalogo</small>
+              <strong>Online</strong>
+              <p>Produtos por categoria e carrinho flutuante.</p>
+            </article>
+            <article className="visual-card">
+              <small>Impressao</small>
+              <strong>1 via</strong>
+              <p>Cupom do pedido direto na termica.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-band" id="recursos">
+        <div className="section-title">
+          <h2>Recursos para vender melhor</h2>
+          <p>O painel centraliza o que o comerciante precisa para receber, separar, entregar e acompanhar os pedidos.</p>
+        </div>
+        <div className="feature-grid">
+          {features.map(([title, text, Icon]) => (
+            <article className="feature-item" key={title}>
+              <Icon size={24} />
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="segments-band" id="segmentos">
+        <div className="section-title">
+          <h2>Pronto para varios segmentos</h2>
+          <p>Cada cliente pode ter seu proprio link, painel, catalogo, produtos, cupons, horarios e configuracoes.</p>
+        </div>
+        <div className="segment-list">
+          {segments.map((segment) => <span key={segment}>{segment}</span>)}
+        </div>
+      </section>
+
+      <section className="marketing-cta">
+        <div>
+          <h2>Venda com seu proprio link</h2>
+          <p>Use o dominio do PediJa para divulgar catalogos e gerenciar seus clientes em um painel master.</p>
+        </div>
+        <a className="orange-button" href="/admin"><Shield size={18} /> Acessar painel master</a>
+      </section>
+    </main>
+  );
+}
+
 function App() {
   const routeSlug = getRouteSlug();
   const adminSlug = getAdminSlug();
   const [page, setPage] = React.useState(() => {
+    if (window.location.pathname === '/') return 'home';
     if (window.location.pathname.startsWith('/catalogo')) return 'catalogo';
     if (window.location.pathname.startsWith('/imprimir/pedido')) return 'print';
     if (window.location.pathname.startsWith('/pedido')) return 'pedido';
@@ -380,10 +483,11 @@ function App() {
   const [autoPrintOrder, setAutoPrintOrder] = React.useState(null);
   const lastOrderId = React.useRef(0);
   const pageRef = React.useRef(page);
+  const isLanding = page === 'home';
   const isCatalog = page === 'catalogo';
   const isTracking = page === 'pedido';
   const isPrintPage = page === 'print';
-  const isPublicPage = isCatalog || isTracking || isPrintPage;
+  const isPublicPage = isLanding || isCatalog || isTracking || isPrintPage;
 
   React.useEffect(() => {
     pageRef.current = page;
@@ -392,7 +496,9 @@ function App() {
   React.useEffect(() => {
     let alive = true;
     setLoading(true);
-    const source = isPublicPage
+    const source = isLanding
+      ? Promise.resolve({ store: initialStore, products: [], orders: [], coupons: [] })
+      : isPublicPage
       ? api(`/api/public${routeSlug ? `?slug=${encodeURIComponent(routeSlug)}` : ''}`).then(async (data) => {
         if (!isTracking && !isPrintPage) return { ...data, orders: [] };
 
@@ -465,7 +571,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [authToken, adminSlug, isCatalog, isPrintPage, isPublicPage, isTracking, routeSlug]);
+  }, [authToken, adminSlug, isCatalog, isLanding, isPrintPage, isPublicPage, isTracking, routeSlug]);
 
   React.useEffect(() => {
     if (loading || isPublicPage || !authToken || role !== 'store') return undefined;
@@ -625,6 +731,10 @@ function App() {
     setOrders((current) => current.filter((order) => order.id !== id));
     setSelectedOrder((current) => current?.id === id ? null : current);
   };
+
+  if (isLanding) {
+    return <MarketingSite />;
+  }
 
   if (isCatalog) {
     return <Catalog store={storeData} products={products} coupons={coupons} onOrder={addOrder} storeSlug={routeSlug || storeData.catalogSlug} />;
