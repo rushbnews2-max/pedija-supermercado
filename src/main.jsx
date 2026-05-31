@@ -1602,6 +1602,31 @@ function ProductThumb({ product }) {
   );
 }
 
+function CatalogProductCard({ product, qty, onAdd, onRemove, featured = false }) {
+  return (
+    <article className={`catalog-item ${featured ? 'featured-card' : ''}`}>
+      <div className="catalog-thumb-wrap">
+        <ProductThumb product={product} />
+        {(product.promo || product.featured) && <span className="catalog-badge">{product.promo ? 'Oferta' : 'Destaque'}</span>}
+      </div>
+      <div className="catalog-item-info">
+        <span>{product.category || 'Produto'}</span>
+        <h3>{product.name}</h3>
+      </div>
+      <div className="catalog-card-footer">
+        <strong>{BRL.format(product.price)}</strong>
+        <div className="stepper">
+          <button type="button" onClick={onRemove} aria-label={`Remover ${product.name}`}>-</button>
+          <b>{qty}</b>
+          <button className="add-step" type="button" onClick={onAdd} aria-label={`Adicionar ${product.name}`}>
+            <Plus size={16} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function ProductModal({ store, product, onSave, onClose }) {
   const [draft, setDraft] = React.useState(() => normalizeProductForEditing(product, store));
   const [status, setStatus] = React.useState('');
@@ -2613,53 +2638,59 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
                 <Search size={18} />
                 <input placeholder="Buscar produto" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
+              {catalogCategories.length > 1 && (
+                <nav className="catalog-category-nav" aria-label="Categorias do catalogo">
+                  {featuredProducts.length > 0 && <a href="#cat-destaques"><Star size={14} /> Destaques</a>}
+                  {catalogCategories.map(([category, categoryProducts]) => (
+                    <a href={`#cat-${slugify(category)}`} key={category}>
+                      {category}
+                      <small>{categoryProducts.length}</small>
+                    </a>
+                  ))}
+                </nav>
+              )}
               <div className="catalog-sections">
                 {featuredProducts.length > 0 && (
-                  <section className="catalog-category featured-category">
+                  <section className="catalog-category featured-category" id="cat-destaques">
                     <div className="catalog-category-head">
-                      <h2>Destaques</h2>
-                      <span>{featuredProducts.length} itens</span>
+                      <div>
+                        <small>Selecionados para voce</small>
+                        <h2>Destaques</h2>
+                      </div>
+                      <a href="#cat-destaques">Ver todos</a>
                     </div>
                     <div className="catalog-grid">
                       {featuredProducts.map((product) => (
-                        <article className="catalog-item" key={`featured-${product.id}`}>
-                          <ProductThumb product={product} />
-                          <div>
-                            <span>{product.category}</span>
-                            <h3>{product.name}</h3>
-                            <strong>{BRL.format(product.price)}</strong>
-                          </div>
-                          <div className="stepper">
-                            <button onClick={() => removeProduct(product)}>-</button>
-                            <b>{productCartQty(cart, product.id)}</b>
-                            <button onClick={() => addProduct(product)}>+</button>
-                          </div>
-                        </article>
+                        <CatalogProductCard
+                          featured
+                          key={`featured-${product.id}`}
+                          product={product}
+                          qty={productCartQty(cart, product.id)}
+                          onRemove={() => removeProduct(product)}
+                          onAdd={() => addProduct(product)}
+                        />
                       ))}
                     </div>
                   </section>
                 )}
                 {catalogCategories.map(([category, categoryProducts]) => (
-                  <section className="catalog-category" key={category}>
+                  <section className="catalog-category" id={`cat-${slugify(category)}`} key={category}>
                     <div className="catalog-category-head">
-                      <h2>{category}</h2>
-                      <span>{categoryProducts.length} itens</span>
+                      <div>
+                        <small>{categoryProducts.length} itens disponiveis</small>
+                        <h2>{category}</h2>
+                      </div>
+                      <a href={`#cat-${slugify(category)}`}>Ver todos</a>
                     </div>
                     <div className="catalog-grid">
                       {categoryProducts.map((product) => (
-                        <article className="catalog-item" key={product.id}>
-                          <ProductThumb product={product} />
-                          <div>
-                            <span>{product.category}</span>
-                            <h3>{product.name}</h3>
-                            <strong>{BRL.format(product.price)}</strong>
-                          </div>
-                          <div className="stepper">
-                            <button onClick={() => removeProduct(product)}>-</button>
-                            <b>{productCartQty(cart, product.id)}</b>
-                            <button onClick={() => addProduct(product)}>+</button>
-                          </div>
-                        </article>
+                        <CatalogProductCard
+                          key={product.id}
+                          product={product}
+                          qty={productCartQty(cart, product.id)}
+                          onRemove={() => removeProduct(product)}
+                          onAdd={() => addProduct(product)}
+                        />
                       ))}
                     </div>
                   </section>
