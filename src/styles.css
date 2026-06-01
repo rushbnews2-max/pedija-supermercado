@@ -408,9 +408,13 @@ a {
   text-align: center;
 }
 
-.brand-strip span svg {
-  color: var(--orange);
-  stroke-width: 2.4;
+.brand-strip span img {
+  width: 42px;
+  height: 42px;
+  border: 2px solid #fff0e7;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(244, 81, 6, .16);
 }
 
 .brand-strip span b {
@@ -538,9 +542,13 @@ a {
   font-weight: 800;
 }
 
-.segment-list span svg {
-  color: var(--orange);
-  stroke-width: 2.4;
+.segment-list span img {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #e8f5ef;
+  border-radius: 999px;
+  object-fit: cover;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, .08);
 }
 
 .marketing-cta {

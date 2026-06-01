@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   BarChart3,
-  Beer,
   Box,
   Check,
   Clock,
@@ -11,7 +10,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Croissant,
   Banknote,
   Copy,
   Download,
@@ -23,7 +21,6 @@ import {
   MessageCircle,
   PackagePlus,
   Phone,
-  Pizza,
   Plus,
   Printer,
   QrCode,
@@ -31,15 +28,12 @@ import {
   Search,
   Settings,
   Shield,
-  ShoppingBasket,
   ShoppingBag,
-  Sandwich,
   Star,
   Store,
   Tag,
   Trash2,
   Truck,
-  UtensilsCrossed,
   Users,
   X
 } from 'lucide-react';
@@ -493,22 +487,31 @@ function MarketingSite() {
     ['Impressao termica', 'Pedidos podem sair direto na impressora do PDV com uma via limpa e organizada.', Printer],
     ['WhatsApp integrado', 'Links de catalogo, comprovante do PIX manual, status e contato rapido com o cliente.', MessageCircle]
   ];
+  const segmentImages = {
+    mercado: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=240&q=80',
+    pizzaria: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80',
+    padaria: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=240&q=80',
+    lanchonete: 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=240&q=80',
+    distribuidora: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=240&q=80',
+    restaurante: 'https://images.unsplash.com/photo-1543353071-10c8ba85a904?auto=format&fit=crop&w=240&q=80',
+    farmacia: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=240&q=80'
+  };
   const brandSegments = [
-    ['Mercado', ShoppingBasket],
-    ['Pizzaria', Pizza],
-    ['Padaria', Croissant],
-    ['Lanchonete', Sandwich],
-    ['Distribuidora', Beer],
-    ['Restaurante', UtensilsCrossed]
+    ['Mercado', segmentImages.mercado],
+    ['Pizzaria', segmentImages.pizzaria],
+    ['Padaria', segmentImages.padaria],
+    ['Lanchonete', segmentImages.lanchonete],
+    ['Distribuidora', segmentImages.distribuidora],
+    ['Restaurante', segmentImages.restaurante]
   ];
   const segments = [
-    ['Supermercados', ShoppingBasket],
-    ['Pizzarias', Pizza],
-    ['Lanchonetes', Sandwich],
-    ['Padarias', Croissant],
-    ['Restaurantes', UtensilsCrossed],
-    ['Farmacias', PackagePlus],
-    ['Distribuidoras', Beer]
+    ['Supermercados', segmentImages.mercado],
+    ['Pizzarias', segmentImages.pizzaria],
+    ['Lanchonetes', segmentImages.lanchonete],
+    ['Padarias', segmentImages.padaria],
+    ['Restaurantes', segmentImages.restaurante],
+    ['Farmacias', segmentImages.farmacia],
+    ['Distribuidoras', segmentImages.distribuidora]
   ];
   const steps = [
     ['01', 'Crie o cliente', 'Cadastre o estabelecimento, segmento, usuario, senha e link de acesso.'],
@@ -583,9 +586,9 @@ function MarketingSite() {
       </section>
 
       <section className="brand-strip" aria-label="Segmentos em destaque">
-        {brandSegments.map(([segment, Icon]) => (
+        {brandSegments.map(([segment, image]) => (
           <span key={segment}>
-            <Icon size={24} />
+            <img src={image} alt="" loading="lazy" />
             <b>{segment}</b>
           </span>
         ))}
@@ -629,9 +632,9 @@ function MarketingSite() {
           <p>Cada cliente pode ter seu proprio link, painel, catalogo, produtos, cupons, horarios e configuracoes.</p>
         </div>
         <div className="segment-list">
-          {segments.map(([segment, Icon]) => (
+          {segments.map(([segment, image]) => (
             <span key={segment}>
-              <Icon size={18} />
+              <img src={image} alt="" loading="lazy" />
               {segment}
             </span>
           ))}
