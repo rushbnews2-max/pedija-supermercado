@@ -400,10 +400,21 @@ a {
 .brand-strip span {
   min-height: 70px;
   display: grid;
+  gap: 8px;
   place-items: center;
   background: #fff;
   color: #334155;
   font-weight: 900;
+  text-align: center;
+}
+
+.brand-strip span svg {
+  color: var(--orange);
+  stroke-width: 2.4;
+}
+
+.brand-strip span b {
+  font-size: 15px;
 }
 
 .marketing-band,
@@ -518,12 +529,18 @@ a {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   border: 1px solid #bfd8ce;
   border-radius: 999px;
   background: #fff;
   padding: 0 18px;
   color: #0f5138;
   font-weight: 800;
+}
+
+.segment-list span svg {
+  color: var(--orange);
+  stroke-width: 2.4;
 }
 
 .marketing-cta {

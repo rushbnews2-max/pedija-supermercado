@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   BarChart3,
+  Beer,
   Box,
   Check,
   Clock,
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Croissant,
   Banknote,
   Copy,
   Download,
@@ -21,6 +23,7 @@ import {
   MessageCircle,
   PackagePlus,
   Phone,
+  Pizza,
   Plus,
   Printer,
   QrCode,
@@ -28,12 +31,15 @@ import {
   Search,
   Settings,
   Shield,
+  ShoppingBasket,
   ShoppingBag,
+  Sandwich,
   Star,
   Store,
   Tag,
   Trash2,
   Truck,
+  UtensilsCrossed,
   Users,
   X
 } from 'lucide-react';
@@ -487,7 +493,23 @@ function MarketingSite() {
     ['Impressao termica', 'Pedidos podem sair direto na impressora do PDV com uma via limpa e organizada.', Printer],
     ['WhatsApp integrado', 'Links de catalogo, comprovante do PIX manual, status e contato rapido com o cliente.', MessageCircle]
   ];
-  const segments = ['Supermercados', 'Pizzarias', 'Lanchonetes', 'Padarias', 'Restaurantes', 'Farmacias', 'Distribuidoras'];
+  const brandSegments = [
+    ['Mercado', ShoppingBasket],
+    ['Pizzaria', Pizza],
+    ['Padaria', Croissant],
+    ['Lanchonete', Sandwich],
+    ['Distribuidora', Beer],
+    ['Restaurante', UtensilsCrossed]
+  ];
+  const segments = [
+    ['Supermercados', ShoppingBasket],
+    ['Pizzarias', Pizza],
+    ['Lanchonetes', Sandwich],
+    ['Padarias', Croissant],
+    ['Restaurantes', UtensilsCrossed],
+    ['Farmacias', PackagePlus],
+    ['Distribuidoras', Beer]
+  ];
   const steps = [
     ['01', 'Crie o cliente', 'Cadastre o estabelecimento, segmento, usuario, senha e link de acesso.'],
     ['02', 'Monte o catalogo', 'Organize produtos por categoria, sabores, bordas, cupons, PIX e entrega.'],
@@ -561,12 +583,12 @@ function MarketingSite() {
       </section>
 
       <section className="brand-strip" aria-label="Segmentos em destaque">
-        <span>Mercado</span>
-        <span>Pizzaria</span>
-        <span>Padaria</span>
-        <span>Lanchonete</span>
-        <span>Distribuidora</span>
-        <span>Restaurante</span>
+        {brandSegments.map(([segment, Icon]) => (
+          <span key={segment}>
+            <Icon size={24} />
+            <b>{segment}</b>
+          </span>
+        ))}
       </section>
 
       <section className="marketing-band" id="recursos">
@@ -607,7 +629,12 @@ function MarketingSite() {
           <p>Cada cliente pode ter seu proprio link, painel, catalogo, produtos, cupons, horarios e configuracoes.</p>
         </div>
         <div className="segment-list">
-          {segments.map((segment) => <span key={segment}>{segment}</span>)}
+          {segments.map(([segment, Icon]) => (
+            <span key={segment}>
+              <Icon size={18} />
+              {segment}
+            </span>
+          ))}
         </div>
       </section>
 
