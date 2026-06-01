@@ -1990,6 +1990,8 @@ input[type="file"] {
   gap: 16px;
   padding: 22px clamp(18px, 6vw, 70px) 48px;
   align-items: start;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .floating-cart-button {
@@ -2154,15 +2156,23 @@ input[type="file"] {
 .search-box input {
   flex: 1;
   border: 0;
+  min-width: 0;
   padding: 0;
+}
+
+.catalog-products {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .catalog-category-nav {
   display: flex;
   gap: 8px;
   overflow-x: auto;
+  max-width: 100%;
   padding: 0 2px 12px;
   margin: -2px 0 4px;
+  overscroll-behavior-inline: contain;
   scrollbar-width: thin;
 }
 
@@ -2203,11 +2213,13 @@ input[type="file"] {
 .catalog-sections {
   display: grid;
   gap: 24px;
+  min-width: 0;
 }
 
 .catalog-category {
   display: grid;
   gap: 12px;
+  min-width: 0;
   scroll-margin-top: 14px;
 }
 
@@ -2268,6 +2280,8 @@ input[type="file"] {
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline mandatory;
   padding: 2px 4px 14px;
+  max-width: 100%;
+  min-width: 0;
   scrollbar-width: thin;
 }
 
