@@ -2096,7 +2096,13 @@ function ThermalTicket({ store, order }) {
       <p>Telefone: {order.phone}</p>
       <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
       <p>Endereco: {order.address}</p>
-      {order.location?.mapsUrl && <p>Mapa: {order.location.mapsUrl}</p>}
+      {order.location?.mapsUrl && (
+        <div className="ticket-qr-box">
+          <strong>Localizacao no GPS</strong>
+          <img src={qrCodeUrl(order.location.mapsUrl)} alt="QR Code da localizacao do pedido" />
+          <small>Aponte a camera para abrir no mapa.</small>
+        </div>
+      )}
       {order.deliveryNeighborhood && <p>Bairro: {order.deliveryNeighborhood}</p>}
       {order.substitution && <p>Falta produto: {order.substitution}</p>}
       {order.notes && <p>Obs: {order.notes}</p>}
@@ -2159,7 +2165,7 @@ function printThermalOrder(store, order, onDone) {
   frame.srcdoc = thermalTicketDocument(store, order);
   document.body.appendChild(frame);
 
-  frame.onload = () => {
+  frame.onload = async () => {
     const printWindow = frame.contentWindow;
     if (!printWindow) {
       finish();
@@ -2172,6 +2178,7 @@ function printThermalOrder(store, order, onDone) {
     };
 
     printWindow.addEventListener('afterprint', afterPrint);
+    await waitForPrintImages(printWindow.document);
     printTimer = window.setTimeout(() => {
       printWindow.focus();
       printWindow.print();
@@ -2208,6 +2215,10 @@ function thermalTicketDocument(store, order) {
     .head { border-bottom: 1px dashed #000; margin-bottom: 3px; padding-bottom: 3px; }
     .head .product-name i { font-weight: 700; }
     small { display: block; margin: 2px 0 4px; overflow-wrap: anywhere; }
+    .qr-box { text-align: center; margin: 5px 0; }
+    .qr-box strong { display: block; margin-bottom: 3px; }
+    .qr-box img { width: 28mm; height: 28mm; image-rendering: pixelated; }
+    .qr-box small { margin-top: 2px; }
     .total { font-size: 14px; font-weight: 700; margin-top: 4px; }
   </style>
 </head>
@@ -2241,7 +2252,7 @@ function thermalTicketMarkup(store, order) {
     <p>Telefone: ${escapeHtml(order.phone)}</p>
     <p>Tipo: ${escapeHtml(order.deliveryMethod || 'Entrega')}</p>
     <p>Endereco: ${escapeHtml(order.address)}</p>
-    ${order.location?.mapsUrl ? `<p>Mapa: ${escapeHtml(order.location.mapsUrl)}</p>` : ''}
+    ${order.location?.mapsUrl ? `<div class="qr-box"><strong>Localizacao no GPS</strong><img src="${escapeHtml(qrCodeUrl(order.location.mapsUrl))}" alt="QR Code da localizacao" /><small>Aponte a camera para abrir no mapa.</small></div>` : ''}
     ${order.deliveryNeighborhood ? `<p>Bairro: ${escapeHtml(order.deliveryNeighborhood)}</p>` : ''}
     ${order.substitution ? `<p>Falta produto: ${escapeHtml(order.substitution)}</p>` : ''}
     ${order.notes ? `<p>Obs: ${escapeHtml(order.notes)}</p>` : ''}
@@ -2256,6 +2267,28 @@ function thermalTicketMarkup(store, order) {
     ${order.paymentStatus ? `<p>Pagamento: ${escapeHtml(order.paymentStatus)}</p>` : ''}
     <p>Status: ${escapeHtml(order.status)}</p>
   `;
+}
+
+function qrCodeUrl(value) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=8&data=${encodeURIComponent(value)}`;
+}
+
+function waitForPrintImages(documentRef) {
+  const images = [...(documentRef?.images || [])];
+  if (!images.length) return Promise.resolve();
+
+  const loaded = Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      image.addEventListener('load', resolve, { once: true });
+      image.addEventListener('error', resolve, { once: true });
+    });
+  }));
+
+  return Promise.race([
+    loaded,
+    new Promise((resolve) => window.setTimeout(resolve, 2500))
+  ]);
 }
 
 function escapeHtml(value) {

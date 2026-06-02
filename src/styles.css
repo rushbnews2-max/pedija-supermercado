@@ -1963,6 +1963,29 @@ input[type="file"] {
   margin: 0 0 4px;
 }
 
+.ticket-qr-box {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  margin: 6px 0;
+  text-align: center;
+}
+
+.ticket-qr-box strong {
+  font-size: 13px;
+}
+
+.ticket-qr-box img {
+  width: 28mm;
+  height: 28mm;
+  image-rendering: pixelated;
+}
+
+.ticket-qr-box small {
+  font-size: 11px;
+  margin: 0;
+}
+
 .ticket-line.total {
   font-size: 16px;
   margin: 8px 0;
