@@ -1555,7 +1555,7 @@ function Products({ store, setStore, products, createProduct, updateProduct, del
           </section>
         </>
       ) : null}
-      {editing && <ProductModal store={store} product={editing} onSave={saveProduct} onClose={() => setEditing(null)} />}
+      {editing && <ProductModal store={store} product={editing} categories={categories} onSave={saveProduct} onClose={() => setEditing(null)} />}
       {importing && <PdfImportModal mode={importing} products={products} updateProduct={updateProduct} importProducts={importProducts} onClose={() => setImporting(null)} />}
     </>
   );
@@ -1657,10 +1657,29 @@ function CatalogProductCard({ product, qty, onAdd, onRemove, featured = false })
   );
 }
 
-function ProductModal({ store, product, onSave, onClose }) {
+function ProductModal({ store, product, categories = [], onSave, onClose }) {
   const [draft, setDraft] = React.useState(() => normalizeProductForEditing(product, store));
   const [status, setStatus] = React.useState('');
+  const availableCategories = React.useMemo(() => {
+    const names = [draft.category, ...categories, 'Sem categoria']
+      .map((category) => String(category || '').trim())
+      .filter(Boolean);
+    return [...new Set(names)];
+  }, [categories, draft.category]);
+  const [categoryMode, setCategoryMode] = React.useState(() => (
+    categories.includes(product.category) || product.category === 'Sem categoria' ? 'existing' : 'new'
+  ));
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  const selectCategory = (value) => {
+    if (value === '__new__') {
+      setCategoryMode('new');
+      setField('category', '');
+      return;
+    }
+
+    setCategoryMode('existing');
+    setField('category', value);
+  };
   const configurable = isConfigurableProduct(draft);
   const updateGroup = (index, field, value) => setDraft((current) => {
     const optionGroups = normalizeOptionGroups(current.optionGroups).map((group, groupIndex) => (
@@ -1704,6 +1723,7 @@ function ProductModal({ store, product, onSave, onClose }) {
     const optionGroups = configurable ? prepareOptionGroupsForSave(draft.optionGroups) : [];
     onSave({
       ...draft,
+      category: String(draft.category || 'Sem categoria').trim() || 'Sem categoria',
       price: Number(draft.price),
       stock: Number(draft.stock),
       slices: Number(draft.slices || 0),
@@ -1726,7 +1746,13 @@ function ProductModal({ store, product, onSave, onClose }) {
           <label>Estoque<input type="number" value={draft.stock} onChange={(event) => setField('stock', event.target.value)} required /></label>
         </div>
         <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
-        <label>Categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} required /></label>
+        <label>Categoria<select value={categoryMode === 'new' ? '__new__' : draft.category} onChange={(event) => selectCategory(event.target.value)} required>
+          {availableCategories.map((category) => <option value={category} key={category}>{category}</option>)}
+          <option value="__new__">Nova categoria...</option>
+        </select></label>
+        {categoryMode === 'new' && (
+          <label>Nome da nova categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} placeholder="Ex: Bebidas, Pizzas, Promocoes" required /></label>
+        )}
         <label>Tipo de venda<select value={configurable ? 'custom' : 'normal'} onChange={(event) => setField('productType', event.target.value)}>
             <option value="normal">Produto simples</option>
             <option value="custom">Produto com escolhas</option>
