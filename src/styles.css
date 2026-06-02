@@ -1240,8 +1240,9 @@ input[type="file"] {
 
 .ticket-product-name {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 4px;
+  grid-template-columns: 54px 32px minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
 }
 
 .ticket-product-name b {
@@ -1249,9 +1250,18 @@ input[type="file"] {
   font-weight: 700;
 }
 
+.ticket-product-name em {
+  font-style: normal;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .ticket-product-name i {
   font-style: normal;
   font-weight: 400;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ticket-head {

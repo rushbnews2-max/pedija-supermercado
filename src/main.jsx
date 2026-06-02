@@ -2076,13 +2076,13 @@ function ThermalTicket({ store, order }) {
       {order.notes && <p>Obs: {order.notes}</p>}
       <hr />
       <div className="ticket-line ticket-head">
-        <span className="ticket-product-name"><b>COD</b><i>DESCRICAO</i></span>
+        <span className="ticket-product-name"><b>COD</b><em>QTD</em><i>DESCRICAO</i></span>
         <strong>VALOR</strong>
       </div>
       {order.items.map((item) => (
         <div className="ticket-item" key={`${item.productId}-${item.name}`}>
           <div className="ticket-line">
-            <span className="ticket-product-name">{item.code && <b>{item.code}</b>}<i>{item.qty}x - {item.name}</i></span>
+            <span className="ticket-product-name"><b>{item.code || '-'}</b><em>{item.qty}x</em><i>{item.name}</i></span>
             <strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong>
           </div>
           {formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}
@@ -2174,9 +2174,10 @@ function thermalTicketDocument(store, order) {
     .line { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
     .line span { flex: 1; }
     .line strong { white-space: nowrap; }
-    .product-name { display: grid; grid-template-columns: 30px 1fr; gap: 4px; }
-    .product-name b, .product-name i { font-style: normal; }
+    .product-name { display: grid; grid-template-columns: 13mm 7mm minmax(0, 1fr); gap: 2mm; }
+    .product-name b, .product-name em, .product-name i { font-style: normal; min-width: 0; }
     .product-name b, .head { font-weight: 700; }
+    .product-name em { font-weight: 700; text-align: right; white-space: nowrap; }
     .product-name i { font-weight: 400; }
     .head { border-bottom: 1px dashed #000; margin-bottom: 3px; padding-bottom: 3px; }
     .head .product-name i { font-weight: 700; }
@@ -2196,7 +2197,7 @@ function thermalTicketMarkup(store, order) {
   const items = (order.items || []).map((item) => `
     <div>
       <div class="line">
-        <span class="product-name">${item.code ? `<b>${escapeHtml(item.code)}</b>` : '<b></b>'}<i>${escapeHtml(item.qty)}x - ${escapeHtml(item.name)}</i></span>
+        <span class="product-name"><b>${escapeHtml(item.code || '-')}</b><em>${escapeHtml(item.qty)}x</em><i>${escapeHtml(item.name)}</i></span>
         <strong>${escapeHtml(BRL.format(item.qty * itemUnitPrice(item)))}</strong>
       </div>
       ${formatItemOptions(item) ? `<small>${escapeHtml(formatItemOptions(item))}</small>` : ''}
@@ -2219,7 +2220,7 @@ function thermalTicketMarkup(store, order) {
     ${order.substitution ? `<p>Falta produto: ${escapeHtml(order.substitution)}</p>` : ''}
     ${order.notes ? `<p>Obs: ${escapeHtml(order.notes)}</p>` : ''}
     <hr />
-    <div class="line head"><span class="product-name"><b>COD</b><i>DESCRICAO</i></span><strong>VALOR</strong></div>
+    <div class="line head"><span class="product-name"><b>COD</b><em>QTD</em><i>DESCRICAO</i></span><strong>VALOR</strong></div>
     ${items}
     <hr />
     ${discount > 0 ? `<div class="line"><span>Desconto ${order.coupon ? `(${escapeHtml(order.coupon)})` : ''}</span><strong>-${escapeHtml(BRL.format(discount))}</strong></div>` : ''}
