@@ -1943,11 +1943,16 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
 
 function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, autoPrintEnabled, setAutoPrintEnabled }) {
   const [filter, setFilter] = React.useState('Ativos');
+  const [dateFilter, setDateFilter] = React.useState(todayInputValue());
+  const needsDateFilter = filter !== 'Ativos';
   const filtered = orders.filter((order) => {
     if (filter === 'Ativos') return ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status);
-    if (filter === 'Entregues') return order.status === 'Entregue';
-    if (filter === 'Cancelados') return order.status === 'Cancelado';
-    return true;
+    const statusMatches = filter === 'Entregues'
+      ? order.status === 'Entregue'
+      : filter === 'Cancelados'
+        ? order.status === 'Cancelado'
+        : true;
+    return statusMatches && orderMatchesDate(order, dateFilter);
   });
 
   const counts = {
@@ -1970,6 +1975,12 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
           <button key={name} className={filter === name ? 'active' : ''} onClick={() => setFilter(name)}>{name} ({counts[name]})</button>
         ))}
       </div>
+      {needsDateFilter && (
+        <div className="order-date-filter">
+          <label>Data dos pedidos<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
+          <span>{filtered.length} pedidos encontrados</span>
+        </div>
+      )}
       <section className="orders-grid">
         {filtered.map((order) => (
           <OrderCard key={order.id} order={order} updateOrderStatus={updateOrderStatus} deleteOrder={deleteOrder} onOpen={() => setSelectedOrder(order)} />
@@ -4243,6 +4254,44 @@ function formatHistoryDate(value) {
   } catch {
     return 'Pedido recente';
   }
+}
+
+function todayInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function orderMatchesDate(order, dateValue) {
+  if (!dateValue) return true;
+  return orderDateInputValue(order) === dateValue;
+}
+
+function orderDateInputValue(order) {
+  const rawDate = order?.createdAtIso || order?.createdAt || '';
+  const text = String(rawDate).trim();
+  if (!text) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+
+  const normalized = normalizeText(text);
+  if (normalized.startsWith('agora') || normalized.startsWith('hoje')) return todayInputValue();
+  if (normalized.startsWith('ontem')) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return todayInputValue(yesterday);
+  }
+
+  const ptBrMatch = text.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
+  if (ptBrMatch) {
+    const [, day, month, year] = ptBrMatch;
+    const fullYear = year.length === 2 ? `20${year}` : year;
+    return `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? '' : todayInputValue(parsed);
 }
 
 function productCartQty(cart, productId) {

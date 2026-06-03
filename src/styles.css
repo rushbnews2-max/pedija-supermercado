@@ -1022,6 +1022,44 @@ input[type="file"] {
   box-shadow: 0 2px 6px rgba(15, 23, 42, .13);
 }
 
+.order-date-filter {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -6px 0 18px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.order-date-filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.order-date-filter input {
+  min-height: 34px;
+  border: 1px solid #dbe4ef;
+  border-radius: 7px;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 9px;
+}
+
+.order-date-filter span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .new-product {
   margin-bottom: 24px;
 }

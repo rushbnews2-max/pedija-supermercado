@@ -432,7 +432,8 @@ app.post('/api/orders', async (req, res) => {
       ...req.body,
       id: nextId,
       status: req.body.status || 'Pendente',
-      createdAt: req.body.createdAt || new Date().toLocaleString('pt-BR')
+      createdAt: req.body.createdAt || new Date().toLocaleString('pt-BR'),
+      createdAtIso: req.body.createdAtIso || new Date().toISOString()
     };
 
     if (storeSlug) {
