@@ -410,10 +410,10 @@ app.get('/api/downloads/print-installer', async (req, res) => {
   const scoped = getStoreBySession(withPlatformDefaults(db), session);
   const slug = slugify(scoped.store.catalogSlug || 'catalogo');
   const baseUrl = publicBaseUrl(req);
-  const fileName = `PediJah-Impressao-${slug}.bat`;
-  const installer = buildPrintInstallerBat({ slug, baseUrl });
+  const fileName = `Instalador-PediJah-Impressao-${slug}.hta`;
+  const installer = buildPrintInstallerHta({ slug, baseUrl, storeName: scoped.store.name || 'PediJah' });
 
-  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Type', 'application/hta');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.send(installer);
 });
@@ -933,6 +933,178 @@ echo Abra o atalho, faca login uma vez e marque "Imprimir novos pedidos automati
 echo.\r
 pause\r
 `;
+}
+
+function buildPrintInstallerHta({ slug, baseUrl, storeName }) {
+  const url = `${baseUrl}/admin/${slug}`;
+  const safeTitle = escapeInstallerHtml(storeName || 'PediJah');
+  const jsConfig = {
+    slug,
+    url,
+    appName: 'PediJah Impressao Automatica',
+    shortcutName: `PediJah Impressao ${slug}`
+  };
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="IE=edge">
+  <title>PediJah Impressao Automatica</title>
+  <HTA:APPLICATION
+    ID="PediJahInstaller"
+    APPLICATIONNAME="PediJah Impressao Automatica"
+    BORDER="thin"
+    CAPTION="yes"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="yes"
+    SCROLL="no"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    WINDOWSTATE="normal"
+  />
+  <style>
+    html, body { margin: 0; width: 560px; height: 420px; overflow: hidden; font-family: Arial, sans-serif; background: #f6f7f9; color: #07172d; }
+    .wrap { padding: 28px; }
+    .card { background: #fff; border: 1px solid #e5e9f0; border-radius: 14px; padding: 24px; box-shadow: 0 18px 45px rgba(15, 23, 42, .12); }
+    .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .logo { width: 58px; height: 58px; line-height: 58px; text-align: center; border-radius: 16px; background: #f45106; color: #fff; font-size: 23px; font-weight: 900; box-shadow: 0 14px 28px rgba(244, 81, 6, .28); }
+    h1 { margin: 0; font-size: 25px; line-height: 1.1; }
+    .brand small { display: block; margin-top: 4px; color: #65748b; font-weight: 700; }
+    p { color: #405069; font-size: 14px; line-height: 1.48; margin: 10px 0; }
+    .store { border: 1px solid #eef1f5; border-radius: 10px; background: #f8fafc; padding: 12px; margin: 14px 0; font-weight: 800; }
+    .actions { display: flex; gap: 10px; margin-top: 18px; }
+    button { min-height: 42px; border: 0; border-radius: 9px; padding: 0 16px; font-weight: 900; cursor: pointer; }
+    .primary { background: #f45106; color: #fff; box-shadow: 0 12px 24px rgba(244, 81, 6, .26); }
+    .secondary { background: #eef1f5; color: #22314a; }
+    #status { min-height: 20px; margin-top: 14px; color: #0f7a43; font-weight: 800; }
+    .hint { color: #7b8798; font-size: 12px; margin-top: 14px; }
+  </style>
+  <script language="javascript">
+    var CONFIG = ${JSON.stringify(jsConfig)};
+
+    function setStatus(text, isError) {
+      var el = document.getElementById('status');
+      el.style.color = isError ? '#b91c1c' : '#0f7a43';
+      el.innerText = text;
+    }
+
+    function line(value) {
+      return value + "\\r\\n";
+    }
+
+    function buildLauncher(url, profile) {
+      var bat = '';
+      bat += line('@echo off');
+      bat += line('set "URL=' + url + '"');
+      bat += line('set "PROFILE=' + profile + '"');
+      bat += line('set "CHROME=%ProgramFiles%\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe"');
+      bat += line('set "CHROME_X86=%ProgramFiles(x86)%\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe"');
+      bat += line('set "EDGE=%ProgramFiles(x86)%\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe"');
+      bat += line('set "EDGE_64=%ProgramFiles%\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe"');
+      bat += line('if exist "%CHROME%" (');
+      bat += line('  start "" "%CHROME%" --kiosk-printing --user-data-dir="%PROFILE%" --app="%URL%"');
+      bat += line('  exit /b 0');
+      bat += line(')');
+      bat += line('if exist "%CHROME_X86%" (');
+      bat += line('  start "" "%CHROME_X86%" --kiosk-printing --user-data-dir="%PROFILE%" --app="%URL%"');
+      bat += line('  exit /b 0');
+      bat += line(')');
+      bat += line('if exist "%EDGE%" (');
+      bat += line('  start "" "%EDGE%" --kiosk-printing --user-data-dir="%PROFILE%" --app="%URL%"');
+      bat += line('  exit /b 0');
+      bat += line(')');
+      bat += line('if exist "%EDGE_64%" (');
+      bat += line('  start "" "%EDGE_64%" --kiosk-printing --user-data-dir="%PROFILE%" --app="%URL%"');
+      bat += line('  exit /b 0');
+      bat += line(')');
+      bat += line('echo Nao encontrei Google Chrome nem Microsoft Edge nos caminhos padrao.');
+      bat += line('pause');
+      return bat;
+    }
+
+    function firstExisting(fso, paths) {
+      for (var i = 0; i < paths.length; i++) {
+        if (fso.FileExists(paths[i])) return paths[i];
+      }
+      return '';
+    }
+
+    function installPrinterLauncher() {
+      try {
+        var shell = new ActiveXObject('WScript.Shell');
+        var fso = new ActiveXObject('Scripting.FileSystemObject');
+        var root = shell.ExpandEnvironmentStrings('%LOCALAPPDATA%') + '\\\\PediJahImpressao';
+        var profile = root + '\\\\' + CONFIG.slug;
+        var launcher = root + '\\\\abrir-' + CONFIG.slug + '.bat';
+        var shortcutPath = shell.SpecialFolders('Desktop') + '\\\\' + CONFIG.shortcutName + '.lnk';
+
+        if (!fso.FolderExists(root)) fso.CreateFolder(root);
+        if (!fso.FolderExists(profile)) fso.CreateFolder(profile);
+
+        var file = fso.CreateTextFile(launcher, true);
+        file.Write(buildLauncher(CONFIG.url, profile));
+        file.Close();
+
+        var shortcut = shell.CreateShortcut(shortcutPath);
+        shortcut.TargetPath = launcher;
+        shortcut.WorkingDirectory = root;
+        shortcut.WindowStyle = 7;
+        shortcut.Description = 'PediJah Impressao Automatica';
+
+        var icon = firstExisting(fso, [
+          shell.ExpandEnvironmentStrings('%ProgramFiles%') + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
+          shell.ExpandEnvironmentStrings('%ProgramFiles(x86)%') + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
+          shell.ExpandEnvironmentStrings('%ProgramFiles%') + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',
+          shell.ExpandEnvironmentStrings('%ProgramFiles(x86)%') + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe'
+        ]);
+        if (icon) shortcut.IconLocation = icon + ',0';
+        shortcut.Save();
+
+        setStatus('Instalacao concluida. Atalho criado na Area de Trabalho.');
+      } catch (error) {
+        setStatus('Nao consegui instalar: ' + error.message, true);
+      }
+    }
+
+    window.onload = function() {
+      window.resizeTo(590, 455);
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <div class="logo">PJ</div>
+        <div>
+          <h1>PediJah</h1>
+          <small>Instalador de impressao automatica</small>
+        </div>
+      </div>
+      <p>Este instalador cria o atalho que abre o painel com impressao direta na impressora padrao do Windows.</p>
+      <div class="store">${safeTitle}<br><small>${escapeInstallerHtml(url)}</small></div>
+      <p>Antes de usar, deixe a impressora termica como impressora padrao. Depois abra o atalho, faca login uma vez e marque a impressao automatica no painel.</p>
+      <div class="actions">
+        <button class="primary" onclick="installPrinterLauncher()">Instalar impressao automatica</button>
+        <button class="secondary" onclick="window.close()">Fechar</button>
+      </div>
+      <div id="status"></div>
+      <div class="hint">O atalho criado usa Chrome ou Edge com impressao silenciosa.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function escapeInstallerHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
 function slugify(value) {

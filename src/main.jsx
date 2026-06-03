@@ -1264,7 +1264,7 @@ function Stores({ store, setStore, setPage }) {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const disposition = response.headers.get('content-disposition') || '';
-      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `PediJah-Impressao-${store.catalogSlug || 'loja'}.bat`;
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `Instalador-PediJah-Impressao-${store.catalogSlug || 'loja'}.hta`;
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
