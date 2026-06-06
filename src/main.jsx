@@ -1660,6 +1660,8 @@ function CatalogProductCard({ product, qty, onAdd, onRemove, featured = false })
 function ProductModal({ store, product, categories = [], onSave, onClose }) {
   const [draft, setDraft] = React.useState(() => normalizeProductForEditing(product, store));
   const [status, setStatus] = React.useState('');
+  const [step, setStep] = React.useState('basic');
+  const [editingGroup, setEditingGroup] = React.useState(null);
   const availableCategories = React.useMemo(() => {
     const names = [draft.category, ...categories, 'Sem categoria']
       .map((category) => String(category || '').trim())
@@ -1681,6 +1683,10 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
     setField('category', value);
   };
   const configurable = isConfigurableProduct(draft);
+  const groups = normalizeOptionGroups(draft.optionGroups);
+  const steps = configurable ? ['basic', 'builder', 'review'] : ['basic', 'review'];
+  const stepIndex = steps.indexOf(step);
+  const canContinueBasic = Boolean(draft.name?.trim() && draft.category?.trim() && Number(draft.price) >= 0);
   const updateGroup = (index, field, value) => setDraft((current) => {
     const optionGroups = normalizeOptionGroups(current.optionGroups).map((group, groupIndex) => (
       groupIndex === index ? { ...group, [field]: value } : group
@@ -1688,22 +1694,48 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
     return { ...current, optionGroups };
   });
   const updateGroupOptions = (index, value) => updateGroup(index, 'optionsText', value);
-  const addGroup = () => setDraft((current) => ({
-    ...current,
-    optionGroups: [
-      ...normalizeOptionGroups(current.optionGroups),
-      { id: crypto.randomUUID(), name: 'Adicionais', min: 0, max: 1, pricing: 'sum', optionsText: '' }
-    ]
-  }));
+  const addGroup = () => {
+    setEditingGroup(groups.length);
+    setDraft((current) => ({
+      ...current,
+      optionGroups: [
+        ...normalizeOptionGroups(current.optionGroups),
+        { id: crypto.randomUUID(), name: 'Adicionais', min: 0, max: 1, pricing: 'sum', optionsText: '' }
+      ]
+    }));
+  };
   const removeGroup = (index) => setDraft((current) => ({
     ...current,
     optionGroups: normalizeOptionGroups(current.optionGroups).filter((_, groupIndex) => groupIndex !== index)
   }));
-  const applyPreset = (preset) => setDraft((current) => ({
-    ...current,
-    productType: 'custom',
-    optionGroups: presetOptionGroups(preset)
-  }));
+  const deleteGroup = (index) => {
+    removeGroup(index);
+    setEditingGroup((current) => current === index ? null : current > index ? current - 1 : current);
+  };
+  const applyPreset = (preset) => {
+    setEditingGroup(null);
+    setDraft((current) => ({
+      ...current,
+      productType: 'custom',
+      optionGroups: presetOptionGroups(preset)
+    }));
+  };
+  const changeProductType = (value) => {
+    setField('productType', value);
+    if (value === 'normal' && step === 'builder') setStep('basic');
+  };
+  const nextStep = () => {
+    if (step === 'basic' && !canContinueBasic) {
+      setStatus('Preencha nome, categoria e preco para continuar.');
+      return;
+    }
+    setStatus('');
+    setStep(steps[Math.min(stepIndex + 1, steps.length - 1)]);
+  };
+  const previousStep = () => {
+    setStatus('');
+    setStep(steps[Math.max(stepIndex - 1, 0)]);
+  };
   const importProductImage = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1720,6 +1752,10 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
   };
   const submit = (event) => {
     event.preventDefault();
+    if (step !== 'review') {
+      nextStep();
+      return;
+    }
     const optionGroups = configurable ? prepareOptionGroupsForSave(draft.optionGroups) : [];
     onSave({
       ...draft,
@@ -1735,79 +1771,127 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
 
   return (
     <div className="overlay">
-      <form className="modal" onSubmit={submit}>
+      <form className="modal product-wizard-modal" onSubmit={submit}>
         <div className="modal-head">
           <h2>{draft.id ? 'Editar produto' : 'Novo produto'}</h2>
           <button type="button" onClick={onClose}><X size={20} /></button>
         </div>
-        <label>Nome<input value={draft.name} onChange={(event) => setField('name', event.target.value)} required /></label>
-        <div className="form-grid">
-          <label>Preco<input type="number" step="0.01" value={draft.price} onChange={(event) => setField('price', event.target.value)} required /></label>
-          <label>Estoque<input type="number" value={draft.stock} onChange={(event) => setField('stock', event.target.value)} required /></label>
+        <div className="product-wizard-progress">
+          {steps.map((item, index) => (
+            <button className={`wizard-step ${step === item ? 'active' : ''} ${index < stepIndex ? 'done' : ''}`} type="button" onClick={() => index <= stepIndex && setStep(item)} key={item}>
+              <span>{index < stepIndex ? <Check size={15} /> : index + 1}</span>
+              {item === 'basic' ? 'Produto' : item === 'builder' ? 'Montagem' : 'Revisao'}
+            </button>
+          ))}
         </div>
-        <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
-        <label>Categoria<select value={categoryMode === 'new' ? '__new__' : draft.category} onChange={(event) => selectCategory(event.target.value)} required>
-          {availableCategories.map((category) => <option value={category} key={category}>{category}</option>)}
-          <option value="__new__">Nova categoria...</option>
-        </select></label>
-        {categoryMode === 'new' && (
-          <label>Nome da nova categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} placeholder="Ex: Bebidas, Pizzas, Promocoes" required /></label>
+
+        {step === 'basic' && (
+          <section className="product-wizard-section">
+            <div className="wizard-section-head">
+              <div><strong>Informacoes principais</strong><small>Cadastre primeiro o que aparece no catalogo.</small></div>
+            </div>
+            <label>Nome<input value={draft.name} onChange={(event) => setField('name', event.target.value)} required /></label>
+            <div className="form-grid">
+              <label>Preco<input type="number" step="0.01" value={draft.price} onChange={(event) => setField('price', event.target.value)} required /></label>
+              <label>Estoque<input type="number" value={draft.stock} onChange={(event) => setField('stock', event.target.value)} required /></label>
+            </div>
+            <div className="form-grid">
+              <label>Codigo<input value={draft.code || ''} onChange={(event) => setField('code', event.target.value)} /></label>
+              <label>Categoria<select value={categoryMode === 'new' ? '__new__' : draft.category} onChange={(event) => selectCategory(event.target.value)} required>
+                {availableCategories.map((category) => <option value={category} key={category}>{category}</option>)}
+                <option value="__new__">Nova categoria...</option>
+              </select></label>
+            </div>
+            {categoryMode === 'new' && (
+              <label>Nome da nova categoria<input value={draft.category} onChange={(event) => setField('category', event.target.value)} placeholder="Ex: Bebidas, Pizzas, Promocoes" required /></label>
+            )}
+            <div className="product-type-picker">
+              <button className={!configurable ? 'active' : ''} type="button" onClick={() => changeProductType('normal')}>
+                <Box size={20} /><span><strong>Produto simples</strong><small>Preco unico, sem escolhas</small></span>
+              </button>
+              <button className={configurable ? 'active' : ''} type="button" onClick={() => changeProductType('custom')}>
+                <Settings size={20} /><span><strong>Produto com montagem</strong><small>Sabores, adicionais ou acompanhamentos</small></span>
+              </button>
+            </div>
+            <details className="wizard-details">
+              <summary>Imagem e visibilidade</summary>
+              <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
+              <label>Importar imagem do PC<input type="file" accept="image/*" onChange={importProductImage} /></label>
+              <div className="product-image-preview"><ProductThumb product={draft} /><span>Previa da imagem do produto</span></div>
+              <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
+              <label className="check-line"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => setField('featured', event.target.checked)} /> Mostrar em destaque no catalogo</label>
+              <label className="check-line"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setField('active', event.target.checked)} /> Produto disponivel para venda</label>
+            </details>
+          </section>
         )}
-        <label>Tipo de venda<select value={configurable ? 'custom' : 'normal'} onChange={(event) => setField('productType', event.target.value)}>
-            <option value="normal">Produto simples</option>
-            <option value="custom">Produto com escolhas</option>
-          </select></label>
-        <label>Imagem URL opcional<input value={draft.image || ''} onChange={(event) => setField('image', event.target.value)} placeholder="Pode deixar em branco" /></label>
-        <label>Importar imagem do PC<input type="file" accept="image/*" onChange={importProductImage} /></label>
-        <div className="product-image-preview">
-          <ProductThumb product={draft} />
-          <span>Previa da imagem do produto</span>
-        </div>
-        {configurable && (
-          <section className="segment-options product-options-editor">
-            <div className="options-editor-head">
-              <div>
-                <strong>Montagem deste produto</strong>
-                <small>Use para pizza, lanche, marmita, porcao ou qualquer produto com acrescimos.</small>
-              </div>
-              <button className="ghost-button" type="button" onClick={addGroup}><Plus size={16} /> Grupo</button>
+
+        {step === 'builder' && configurable && (
+          <section className="product-wizard-section">
+            <div className="wizard-section-head">
+              <div><strong>Como o cliente monta este produto?</strong><small>Comece com um modelo pronto ou crie seus proprios grupos.</small></div>
+              <button className="ghost-button" type="button" onClick={addGroup}><Plus size={16} /> Novo grupo</button>
+            </div>
+            <div className="preset-card-grid">
+              <button type="button" onClick={() => applyPreset('pizza')}><strong>Pizza</strong><small>Sabores e borda</small></button>
+              <button type="button" onClick={() => applyPreset('snack')}><strong>Lanche</strong><small>Observacoes e adicionais</small></button>
+              <button type="button" onClick={() => applyPreset('meal')}><strong>Marmita</strong><small>Acompanhamentos e adicionais</small></button>
             </div>
             <div className="form-grid">
               <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>
               <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Grande, 500g, X-tudo" /></label>
             </div>
-            <div className="preset-actions">
-              <button type="button" onClick={() => applyPreset('pizza')}>Modelo pizza</button>
-              <button type="button" onClick={() => applyPreset('snack')}>Modelo lanche</button>
-              <button type="button" onClick={() => applyPreset('meal')}>Modelo marmita</button>
+            <div className="option-group-list">
+              {groups.map((group, index) => {
+                const optionCount = parsePricedOptions(group.optionsText ?? group.options).length;
+                const isEditing = editingGroup === index;
+                return (
+                  <article className={`option-group-summary ${isEditing ? 'editing' : ''}`} key={group.id || index}>
+                    <div className="option-group-summary-head">
+                      <div><strong>{group.name || 'Grupo sem nome'}</strong><small>{optionCount} opcoes · escolha de {group.min || 0} a {group.max || 1}</small></div>
+                      <div className="option-group-summary-actions">
+                        <button type="button" onClick={() => setEditingGroup(isEditing ? null : index)}><Edit3 size={15} /> {isEditing ? 'Fechar' : 'Editar'}</button>
+                        <button type="button" className="danger-text-button" onClick={() => deleteGroup(index)} aria-label={`Remover ${group.name}`}><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <div className="option-group-editor">
+                        <label>Nome do grupo<input value={group.name} onChange={(event) => updateGroup(index, 'name', event.target.value)} placeholder="Sabores, Borda, Adicionais" /></label>
+                        <div className="form-grid compact-grid">
+                          <label>Minimo<input type="number" min="0" value={group.min} onChange={(event) => updateGroup(index, 'min', event.target.value)} /></label>
+                          <label>Maximo<input type="number" min="1" value={group.max} onChange={(event) => updateGroup(index, 'max', event.target.value)} /></label>
+                          <label>Como cobrar<select value={group.pricing || 'sum'} onChange={(event) => updateGroup(index, 'pricing', event.target.value)}>
+                            <option value="sum">Somar opcoes</option><option value="highest">Cobrar maior valor</option><option value="free">Nao cobrar</option>
+                          </select></label>
+                        </div>
+                        <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa | Molho, mussarela e cebola=R$ 0,00&#10;Catupiry=R$ 6,00" /></label>
+                        <small className="option-format-help">Uma opcao por linha. Use: nome | ingredientes = R$ acrescimo.</small>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+              {!groups.length && <p className="empty">Escolha um modelo acima ou crie um grupo para comecar.</p>}
             </div>
-            {normalizeOptionGroups(draft.optionGroups).map((group, index) => (
-              <article className="option-group-editor" key={group.id || index}>
-                <div className="option-group-title">
-                  <label>Nome do grupo<input value={group.name} onChange={(event) => updateGroup(index, 'name', event.target.value)} placeholder="Sabores, Borda, Adicionais" /></label>
-                  <button type="button" className="danger-text-button" onClick={() => removeGroup(index)}><Trash2 size={15} /> Remover</button>
-                </div>
-                <div className="form-grid compact-grid">
-                  <label>Minimo<input type="number" min="0" value={group.min} onChange={(event) => updateGroup(index, 'min', event.target.value)} /></label>
-                  <label>Maximo<input type="number" min="1" value={group.max} onChange={(event) => updateGroup(index, 'max', event.target.value)} /></label>
-                  <label>Preco<select value={group.pricing || 'sum'} onChange={(event) => updateGroup(index, 'pricing', event.target.value)}>
-                    <option value="sum">Somar opcoes</option>
-                    <option value="highest">Cobrar maior valor</option>
-                    <option value="free">Nao cobrar</option>
-                  </select></label>
-                </div>
-                <label>Opcoes<textarea value={group.optionsText ?? pricedOptionsToText(group.options)} onChange={(event) => updateGroupOptions(index, event.target.value)} placeholder="Calabresa | Molho, mussarela, milho e cebola=R$ 0,00&#10;Frango com catupiry | Molho, frango, catupiry e milho=R$ 5,00&#10;Cheddar=R$ 7,00" /></label>
-                <small className="option-format-help">Formato: nome | ingredientes = R$ acrescimo. Se digitar apenas 50, o sistema entende como R$ 50,00.</small>
-              </article>
-            ))}
-            {!normalizeOptionGroups(draft.optionGroups).length && <p className="empty">Clique em Grupo ou escolha um modelo para cadastrar sabores, bordas e adicionais.</p>}
           </section>
         )}
-        <label className="check-line"><input type="checkbox" checked={draft.promo} onChange={(event) => setField('promo', event.target.checked)} /> Produto em promocao</label>
-        <label className="check-line"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(event) => setField('featured', event.target.checked)} /> Mostrar em destaque no catalogo</label>
-        <label className="check-line"><input type="checkbox" checked={draft.active !== false} onChange={(event) => setField('active', event.target.checked)} /> Produto disponivel para venda</label>
+
+        {step === 'review' && (
+          <section className="product-wizard-section product-review">
+            <div className="review-product-head"><ProductThumb product={draft} /><div><strong>{draft.name || 'Produto sem nome'}</strong><small>{draft.category || 'Sem categoria'} · {BRL.format(Number(draft.price || 0))}</small></div></div>
+            <div className="review-grid">
+              <span><small>Tipo</small><strong>{configurable ? 'Com montagem' : 'Produto simples'}</strong></span>
+              <span><small>Estoque</small><strong>{draft.stock || 0}</strong></span>
+              <span><small>Status</small><strong>{draft.active !== false ? 'Disponivel' : 'Indisponivel'}</strong></span>
+            </div>
+            {configurable && <div className="review-groups"><strong>Montagem configurada</strong>{groups.length ? groups.map((group) => <span key={group.id}>{group.name}: {parsePricedOptions(group.optionsText ?? group.options).length} opcoes</span>) : <small>Nenhum grupo cadastrado.</small>}</div>}
+          </section>
+        )}
+
         {status && <p className="form-status">{status}</p>}
-        <button className="orange-button" type="submit"><Check size={18} /> Salvar</button>
+        <div className="wizard-actions">
+          {stepIndex > 0 && <button className="ghost-button" type="button" onClick={previousStep}>Voltar</button>}
+          <button className="orange-button" type="submit">{step === 'review' ? <><Check size={18} /> Salvar produto</> : <>Proxima etapa <ChevronRight size={18} /></>}</button>
+        </div>
       </form>
     </div>
   );
