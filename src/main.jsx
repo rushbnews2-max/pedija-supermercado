@@ -1717,6 +1717,8 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
     setDraft((current) => ({
       ...current,
       productType: 'custom',
+      configurationPreset: preset,
+      slices: preset === 'pizza' ? current.slices : 0,
       optionGroups: presetOptionGroups(preset)
     }));
   };
@@ -1832,14 +1834,17 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
               <button className="ghost-button" type="button" onClick={addGroup}><Plus size={16} /> Novo grupo</button>
             </div>
             <div className="preset-card-grid">
-              <button type="button" onClick={() => applyPreset('pizza')}><strong>Pizza</strong><small>Sabores e borda</small></button>
-              <button type="button" onClick={() => applyPreset('snack')}><strong>Lanche</strong><small>Observacoes e adicionais</small></button>
-              <button type="button" onClick={() => applyPreset('meal')}><strong>Marmita</strong><small>Acompanhamentos e adicionais</small></button>
+              <button className={draft.configurationPreset === 'pizza' ? 'active' : ''} type="button" onClick={() => applyPreset('pizza')}><strong>Pizza</strong><small>Sabores e borda</small></button>
+              <button className={draft.configurationPreset === 'snack' ? 'active' : ''} type="button" onClick={() => applyPreset('snack')}><strong>Lanche</strong><small>Ingredientes, observacao e adicionais</small></button>
+              <button className={draft.configurationPreset === 'meal' ? 'active' : ''} type="button" onClick={() => applyPreset('meal')}><strong>Marmita</strong><small>Acompanhamentos e adicionais</small></button>
             </div>
             <div className="form-grid">
-              <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>
+              {draft.configurationPreset === 'pizza' && <label>Quantidade de fatias<input type="number" min="0" value={draft.slices || ''} onChange={(event) => setField('slices', event.target.value)} placeholder="Ex: 8" /></label>}
               <label>Tamanho/descricao<input value={draft.pizzaSize || ''} onChange={(event) => setField('pizzaSize', event.target.value)} placeholder="Ex: Grande, 500g, X-tudo" /></label>
             </div>
+            {draft.configurationPreset === 'snack' && (
+              <label>Ingredientes do lanche<textarea value={draft.ingredients || ''} onChange={(event) => setField('ingredients', event.target.value)} placeholder="Ex: Pao, carne, queijo, alface, tomate e molho especial" /></label>
+            )}
             <div className="option-group-list">
               {groups.map((group, index) => {
                 const optionCount = parsePricedOptions(group.optionsText ?? group.options).length;
@@ -1883,6 +1888,7 @@ function ProductModal({ store, product, categories = [], onSave, onClose }) {
               <span><small>Estoque</small><strong>{draft.stock || 0}</strong></span>
               <span><small>Status</small><strong>{draft.active !== false ? 'Disponivel' : 'Indisponivel'}</strong></span>
             </div>
+            {draft.ingredients && <div className="review-groups"><strong>Ingredientes</strong><span>{draft.ingredients}</span></div>}
             {configurable && <div className="review-groups"><strong>Montagem configurada</strong>{groups.length ? groups.map((group) => <span key={group.id}>{group.name}: {parsePricedOptions(group.optionsText ?? group.options).length} opcoes</span>) : <small>Nenhum grupo cadastrado.</small>}</div>}
           </section>
         )}
@@ -2514,6 +2520,9 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         }
       };
     });
+    if (options.notes) {
+      setProductNotes((current) => ({ ...current, [key]: options.notes }));
+    }
     setCartMessage(`${product.name} esta no carrinho.`);
   };
   React.useEffect(() => {
@@ -2549,7 +2558,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         flavors: item.flavors || [],
         border: item.border || '',
         flavorPrice: Number(item.flavorPrice || 0),
-        borderPrice: Number(item.borderPrice || 0)
+        borderPrice: Number(item.borderPrice || 0),
+        notes: item.notes || ''
       };
       const key = cartKey(product.id, options);
       nextCart[key] = {
@@ -3019,6 +3029,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
 function ProductCustomizeModal({ store, product, onAdd, onClose }) {
   const groups = optionGroupsForProduct(product, store);
   const [selected, setSelected] = React.useState(() => initialSelectedOptions(groups));
+  const [notes, setNotes] = React.useState('');
   const [expandedOptions, setExpandedOptions] = React.useState({});
   const [stepIndex, setStepIndex] = React.useState(0);
   const steppedMode = usesSteppedProductBuilder(store);
@@ -3076,7 +3087,8 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
       flavors: selectedOptionGroups.find((group) => isFlavorGroup(group.name))?.options.map((item) => item.name) || [],
       border: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.options[0]?.name || '',
       flavorPrice: selectedOptionGroups.find((group) => isFlavorGroup(group.name))?.price || 0,
-      borderPrice: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.price || 0
+      borderPrice: selectedOptionGroups.find((group) => normalizeText(group.name).includes('borda'))?.price || 0,
+      notes: notes.trim()
     });
   };
   const nextStep = () => {
@@ -3129,6 +3141,7 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
         {(product.pizzaSize || product.slices) && (
           <p className="pizza-summary">{[product.pizzaSize, product.slices ? `${product.slices} fatias` : ''].filter(Boolean).join(' - ')}</p>
         )}
+        {product.ingredients && <p className="product-ingredients"><strong>Ingredientes:</strong> {product.ingredients}</p>}
         {steppedMode && groups.length > 1 && (
           <div className="step-progress">
             <span>Etapa {stepIndex + 1} de {groups.length}</span>
@@ -3136,6 +3149,9 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
           </div>
         )}
         {steppedMode && currentGroup ? renderGroup(currentGroup) : groups.map(renderGroup)}
+        {product.configurationPreset === 'snack' && (!steppedMode || isLastStep) && (
+          <label className="product-free-notes">Ponto e observacoes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ex: carne bem passada, sem cebola, cortar ao meio" /></label>
+        )}
         {(steppedMode ? stepValidation : validation) && <p className="checkout-warning">{steppedMode ? stepValidation : validation}</p>}
         <div className="pizza-total"><span>Total</span><strong>{BRL.format(finalPrice)}</strong></div>
         {steppedMode ? (
@@ -4161,7 +4177,6 @@ function presetOptionGroups(type) {
       { name: 'Borda', min: 0, max: 1, pricing: 'sum', optionsText: 'Sem borda=0\nCatupiry=6\nCheddar=7' }
     ],
     snack: [
-      { name: 'Ponto/observacao', min: 0, max: 1, pricing: 'free', optionsText: 'Sem cebola=0\nSem tomate=0\nBem passado=0' },
       { name: 'Adicionais', min: 0, max: 5, pricing: 'sum', optionsText: 'Bacon=4\nCheddar=3\nOvo=2' }
     ],
     meal: [
@@ -4285,7 +4300,7 @@ function cartKey(productId, options = {}) {
   const groupsKey = Array.isArray(options.optionGroups)
     ? options.optionGroups.map((group) => `${group.name}:${group.options.map((item) => item.name).join('+')}`).join('|')
     : [(options.flavors || []).join('+'), options.border || ''].join('|');
-  return [productId, groupsKey].map((part) => encodeURIComponent(part)).join('::');
+  return [productId, groupsKey, options.notes || ''].map((part) => encodeURIComponent(part)).join('::');
 }
 
 function cartEntryProductId(key, entry) {

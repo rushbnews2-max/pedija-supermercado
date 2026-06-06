@@ -1934,6 +1934,17 @@ input[type="file"] {
   background: #fffaf5;
 }
 
+.preset-card-grid button.active {
+  border-color: #f4510b;
+  background: #fff7ed;
+  color: #c2410c;
+  box-shadow: 0 0 0 2px rgba(244, 81, 11, .12);
+}
+
+.preset-card-grid button.active small {
+  color: #9a3412;
+}
+
 .wizard-details {
   padding: 12px;
   border: 1px solid #e2e8f0;
@@ -2052,6 +2063,23 @@ input[type="file"] {
 .wizard-actions .orange-button {
   width: auto;
   min-width: 180px;
+}
+
+.product-ingredients {
+  margin: -4px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.product-free-notes {
+  margin-top: 8px;
+}
+
+.product-free-notes textarea {
+  min-height: 82px;
 }
 
 .pizza-options-panel {
