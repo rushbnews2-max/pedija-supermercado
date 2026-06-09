@@ -1316,6 +1316,12 @@ function Stores({ store, setStore, setPage }) {
   };
   const downloadPrintInstaller = async () => {
     try {
+      const adminUrl = `${window.location.origin}/admin/${store.catalogSlug || 'loja'}`;
+      try {
+        await navigator.clipboard.writeText(adminUrl);
+      } catch {
+        // O instalador ainda permite informar o link manualmente.
+      }
       const token = localStorage.getItem('pedija-admin-token');
       const response = await fetch(`${API_BASE}/api/downloads/print-installer`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -1325,7 +1331,7 @@ function Stores({ store, setStore, setPage }) {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const disposition = response.headers.get('content-disposition') || '';
-      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `Instalador-PediJah-Impressao-${store.catalogSlug || 'loja'}.hta`;
+      const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || `PediJah-PDV-${store.catalogSlug || 'loja'}-Setup.exe`;
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
@@ -1370,10 +1376,10 @@ function Stores({ store, setStore, setPage }) {
           <Printer size={22} />
           <div>
             <h3>Impressao direta no PDV</h3>
-            <p>Baixe o instalador deste estabelecimento para criar o atalho de impressao automatica no computador do caixa.</p>
+            <p>Instale o PediJah PDV com icone proprio, atalho na Area de Trabalho e impressao automatica no computador do caixa.</p>
           </div>
         </div>
-        <button className="ghost-button" type="button" onClick={downloadPrintInstaller}><Download size={18} /> Baixar instalador</button>
+        <button className="ghost-button" type="button" onClick={downloadPrintInstaller}><Download size={18} /> Baixar PediJah PDV</button>
       </section>
       {editing && (
         <StoreModal

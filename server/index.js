@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readDb, updateDb } from './database.js';
 
@@ -512,13 +513,20 @@ app.get('/api/downloads/print-installer', async (req, res) => {
   const session = getSession(req);
   const scoped = getStoreBySession(withPlatformDefaults(db), session);
   const slug = slugify(scoped.store.catalogSlug || 'catalogo');
-  const baseUrl = publicBaseUrl(req);
-  const fileName = `Instalador-PediJah-Impressao-${slug}.hta`;
-  const installer = buildPrintInstallerHta({ slug, baseUrl, storeName: scoped.store.name || 'PediJah' });
+  const installerPath = join(__dirname, 'assets', 'PediJah-PDV-Setup.exe');
 
+  if (existsSync(installerPath)) {
+    res.setHeader('Content-Type', 'application/vnd.microsoft.portable-executable');
+    res.setHeader('Content-Disposition', `attachment; filename="PediJah-PDV-${slug}-Setup.exe"`);
+    res.sendFile(installerPath);
+    return;
+  }
+
+  const baseUrl = publicBaseUrl(req);
+  const legacyInstaller = buildPrintInstallerHta({ slug, baseUrl, storeName: scoped.store.name || 'PediJah' });
   res.setHeader('Content-Type', 'application/hta');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-  res.send(installer);
+  res.setHeader('Content-Disposition', `attachment; filename="Instalador-PediJah-Impressao-${slug}.hta"`);
+  res.send(legacyInstaller);
 });
 
 app.get('/api/orders', async (req, res) => {
