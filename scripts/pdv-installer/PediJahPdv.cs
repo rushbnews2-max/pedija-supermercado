@@ -9,8 +9,8 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Impressao automatica e acesso ao painel PediJah")]
 [assembly: AssemblyCompany("PediJah")]
 [assembly: AssemblyProduct("PediJah PDV")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 namespace PediJahPdv
 {
@@ -107,6 +107,8 @@ namespace PediJahPdv
             {
                 File.Delete(startupShortcut);
             }
+
+            RefreshWindowsIcons();
         }
 
         private static void CreateShortcut(string path, string target, string arguments, string description)
@@ -121,6 +123,21 @@ namespace PediJahPdv
             shortcut.Description = description;
             shortcut.WindowStyle = 1;
             shortcut.Save();
+        }
+
+        private static void RefreshWindowsIcons()
+        {
+            string refreshTool = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "ie4uinit.exe");
+            if (!File.Exists(refreshTool)) return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(refreshTool, "-show") {
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+            }
+            catch { }
         }
 
         internal static void LaunchInstalled()
@@ -192,26 +209,26 @@ namespace PediJahPdv
             Controls.Add(brand);
 
             Label mark = new Label {
-                Text = "PJ",
+                Text = "PediJah",
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(244, 81, 6),
-                Font = new Font("Segoe UI", 18F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Location = new Point(28, 22),
-                Size = new Size(56, 56)
+                Size = new Size(64, 56)
             };
             Label title = new Label {
                 Text = "PediJah PDV",
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 20F, FontStyle.Bold),
                 AutoSize = true,
-                Location = new Point(100, 21)
+                Location = new Point(108, 21)
             };
             Label subtitle = new Label {
                 Text = "Impressao automatica de pedidos",
                 ForeColor = Color.FromArgb(194, 205, 221),
                 AutoSize = true,
-                Location = new Point(103, 60)
+                Location = new Point(111, 60)
             };
             brand.Controls.Add(mark);
             brand.Controls.Add(title);

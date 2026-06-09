@@ -13,15 +13,19 @@ Add-Type -AssemblyName System.Drawing
 $bitmap = New-Object System.Drawing.Bitmap 256, 256
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$graphics.Clear([System.Drawing.Color]::FromArgb(10, 26, 48))
+$graphics.Clear([System.Drawing.Color]::FromArgb(255, 255, 255))
+$navyBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(10, 26, 48))
 $orangeBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(244, 81, 6))
-$graphics.FillRectangle($orangeBrush, 0, 0, 256, 74)
-$font = New-Object System.Drawing.Font 'Segoe UI', 72, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
+$graphics.FillEllipse($navyBrush, 10, 10, 236, 236)
+$graphics.FillEllipse($orangeBrush, 24, 24, 208, 208)
+$graphics.FillEllipse($navyBrush, 42, 42, 172, 172)
+$font = New-Object System.Drawing.Font 'Segoe UI', 104, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
 $whiteBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
 $format = New-Object System.Drawing.StringFormat
 $format.Alignment = [System.Drawing.StringAlignment]::Center
 $format.LineAlignment = [System.Drawing.StringAlignment]::Center
-$graphics.DrawString('PJ', $font, $whiteBrush, (New-Object System.Drawing.RectangleF 0, 62, 256, 194), $format)
+$graphics.DrawString('P', $font, $whiteBrush, (New-Object System.Drawing.RectangleF 0, 40, 175, 180), $format)
+$graphics.DrawString('J', $font, $orangeBrush, (New-Object System.Drawing.RectangleF 82, 52, 150, 180), $format)
 $handle = $bitmap.GetHicon()
 $iconObject = [System.Drawing.Icon]::FromHandle($handle)
 $stream = [System.IO.File]::Create($icon)
