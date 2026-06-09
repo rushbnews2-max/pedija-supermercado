@@ -1701,6 +1701,46 @@ input[type="file"] {
   font-size: 18px;
 }
 
+.split-payment-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.split-payment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.split-payment-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fff1f2;
+  color: #be123c;
+  font-weight: 800;
+}
+
+.split-payment-status.complete {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.table-checkout-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .local-service-toolbar {
   display: flex;
   align-items: center;
@@ -4416,6 +4456,20 @@ input[type="file"] {
   }
 
   .waiter-admin-list article > div:last-child .ghost-button {
+    width: 100%;
+  }
+
+  .split-payment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .split-payment-status,
+  .table-checkout-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-checkout-actions button {
     width: 100%;
   }
 

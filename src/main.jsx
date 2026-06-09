@@ -1822,13 +1822,35 @@ function TableCheckoutModal({ table, orders, onClose, onConfirm }) {
   const [servicePercent, setServicePercent] = React.useState(10);
   const [discount, setDiscount] = React.useState(0);
   const [payment, setPayment] = React.useState('Dinheiro');
+  const [splitPayments, setSplitPayments] = React.useState({ Dinheiro: '', PIX: '', Debito: '', Credito: '' });
   const [saving, setSaving] = React.useState(false);
   const serviceFee = subtotal * Math.max(0, Number(servicePercent || 0)) / 100;
   const total = Math.max(0, subtotal + serviceFee - Math.max(0, Number(discount || 0)));
-  const confirmPayment = async () => {
+  const splitTotal = Object.values(splitPayments).reduce((sum, value) => sum + Number(value || 0), 0);
+  const splitDifference = total - splitTotal;
+  const splitValid = payment !== 'Pagamento dividido' || Math.abs(splitDifference) < 0.01;
+  const settlement = {
+    subtotal,
+    servicePercent: Number(servicePercent || 0),
+    serviceFee,
+    discount: Number(discount || 0),
+    total,
+    payment,
+    payments: payment === 'Pagamento dividido'
+      ? Object.entries(splitPayments).filter(([, value]) => Number(value || 0) > 0).map(([method, value]) => ({ method, value: Number(value) }))
+      : [{ method: payment, value: total }],
+    receivedAt: new Date().toISOString()
+  };
+  const confirmPayment = async (printReceipt = false) => {
+    if (!splitValid) return;
+    const printWindow = printReceipt ? window.open('', '_blank', 'width=420,height=700') : null;
     setSaving(true);
     try {
-      await onConfirm({ subtotal, servicePercent: Number(servicePercent || 0), serviceFee, discount: Number(discount || 0), total, payment, receivedAt: new Date().toISOString() });
+      await onConfirm(settlement);
+      if (printReceipt) printTableAccount(table, orders, settlement, 'receipt', printWindow);
+    } catch (error) {
+      printWindow?.close();
+      throw error;
     } finally {
       setSaving(false);
     }
@@ -1845,16 +1867,53 @@ function TableCheckoutModal({ table, orders, onClose, onConfirm }) {
           <label>Desconto (R$)<input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} /></label>
         </div>
         <label>Forma de pagamento<select value={payment} onChange={(event) => setPayment(event.target.value)}><option>Dinheiro</option><option>PIX</option><option>Cartao de debito</option><option>Cartao de credito</option><option>Pagamento dividido</option></select></label>
+        {payment === 'Pagamento dividido' && (
+          <section className="split-payment-box">
+            <strong>Dividir pagamento</strong>
+            <div className="split-payment-grid">
+              {Object.keys(splitPayments).map((method) => <label key={method}>{method}<input type="number" min="0" step="0.01" value={splitPayments[method]} onChange={(event) => setSplitPayments((current) => ({ ...current, [method]: event.target.value }))} placeholder="R$ 0,00" /></label>)}
+            </div>
+            <div className={`split-payment-status ${splitValid ? 'complete' : ''}`}>
+              <span>Informado: {BRL.format(splitTotal)}</span>
+              <strong>{splitValid ? 'Pagamento completo' : splitDifference > 0 ? `Falta ${BRL.format(splitDifference)}` : `Excedeu ${BRL.format(Math.abs(splitDifference))}`}</strong>
+            </div>
+          </section>
+        )}
         <div className="table-account-total">
           <span>Consumo <strong>{BRL.format(subtotal)}</strong></span>
           <span>Servico <strong>{BRL.format(serviceFee)}</strong></span>
           <span>Desconto <strong>- {BRL.format(Number(discount || 0))}</strong></span>
           <b>Total a receber <strong>{BRL.format(total)}</strong></b>
         </div>
-        <div className="modal-actions"><button className="ghost-button" type="button" onClick={onClose}>Cancelar</button><button className="orange-button" type="button" disabled={saving} onClick={confirmPayment}><CreditCard size={18} /> {saving ? 'Recebendo...' : 'Receber e liberar mesa'}</button></div>
+        <div className="table-checkout-actions">
+          <button className="ghost-button" type="button" onClick={onClose}>Cancelar</button>
+          <button className="ghost-button" type="button" onClick={() => printTableAccount(table, orders, settlement, 'pre-account')}><Printer size={17} /> Imprimir pre-conta</button>
+          <button className="orange-button" type="button" disabled={saving || !splitValid} onClick={() => confirmPayment(true)}><CreditCard size={18} /> {saving ? 'Recebendo...' : 'Receber e imprimir'}</button>
+        </div>
       </section>
     </div>
   );
+}
+
+function printTableAccount(table, orders, settlement, mode, targetWindow = null) {
+  const receipt = mode === 'receipt';
+  const items = orders.flatMap((order) => order.items.map((item) => ({
+    ...item,
+    waiter: order.waiter || 'Estabelecimento'
+  })));
+  const paymentLines = (settlement.payments || []).map((item) => `<p><span>${escapeHtml(item.method)}</span><b>${BRL.format(Number(item.value || 0))}</b></p>`).join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${receipt ? 'Comprovante' : 'Pre-conta'} ${escapeHtml(table.name)}</title><style>
+    @page{size:80mm auto;margin:3mm}*{box-sizing:border-box}body{width:74mm;margin:0;font:12px monospace;color:#000}h2,h3,p{margin:0 0 6px}h2,h3{text-align:center}hr{border:0;border-top:1px dashed #000;margin:8px 0}.line,p{display:flex;justify-content:space-between;gap:8px}.item{margin:7px 0}.item small{display:block}.total{font-size:16px;font-weight:bold}footer{text-align:center;margin-top:12px}
+  </style></head><body><h2>${receipt ? 'COMPROVANTE DE PAGAMENTO' : 'PRE-CONTA'}</h2><h3>${escapeHtml(table.name)}</h3><p><span>Pedidos</span><b>${orders.map((order) => `#${order.id}`).join(', ')}</b></p><hr>
+  ${items.map((item) => `<div class="item"><div class="line"><span>${item.qty}x ${escapeHtml(item.name)}</span><b>${BRL.format(item.qty * itemUnitPrice(item))}</b></div>${formatItemOptions(item) ? `<small>${escapeHtml(formatItemOptions(item))}</small>` : ''}<small>Garcom: ${escapeHtml(item.waiter)}</small></div>`).join('')}
+  <hr><p><span>Consumo</span><b>${BRL.format(settlement.subtotal)}</b></p><p><span>Servico (${settlement.servicePercent}%)</span><b>${BRL.format(settlement.serviceFee)}</b></p><p><span>Desconto</span><b>- ${BRL.format(settlement.discount)}</b></p><p class="total"><span>TOTAL</span><b>${BRL.format(settlement.total)}</b></p>
+  ${receipt ? `<hr><h3>PAGAMENTO</h3>${paymentLines}<footer>Pagamento recebido. Obrigado!</footer>` : '<footer>Documento para conferencia. Nao e comprovante de pagamento.</footer>'}
+  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}<\/script></body></html>`;
+  const printWindow = targetWindow || window.open('', '_blank', 'width=420,height=700');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 function Products({ store, setStore, products, createProduct, updateProduct, deleteProduct, importProducts }) {
