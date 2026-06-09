@@ -1583,6 +1583,30 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
   const visibleTables = tables.filter((table) => tableFilter === 'Todas' || tableStatus(table) === tableFilter);
   const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && order.settled !== true && order.status !== 'Cancelado') : [];
   const tableAccountTotal = tableOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+  const tableAccountItems = tableOrders.reduce((grouped, order) => {
+    order.items.forEach((item) => {
+      const optionsText = formatItemOptions(item);
+      const key = [item.productId || item.name, optionsText, item.notes || '', itemUnitPrice(item)].join('|');
+      if (!grouped[key]) {
+        grouped[key] = {
+          ...item,
+          qty: 0,
+          total: 0,
+          optionsText,
+          launches: []
+        };
+      }
+      grouped[key].qty += Number(item.qty || 0);
+      grouped[key].total += Number(item.qty || 0) * itemUnitPrice(item);
+      grouped[key].launches.push({
+        orderId: order.id,
+        qty: Number(item.qty || 0),
+        waiter: order.waiter || 'Estabelecimento',
+        createdAt: order.createdAt
+      });
+    });
+    return grouped;
+  }, {});
   const cartItems = Object.entries(cart).map(([key, entry]) => {
     const product = products.find((item) => item.id === entry.productId);
     return product ? {
@@ -1737,23 +1761,29 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
             </div>
             <div className="local-order-actions">
               {!tableOrders.length && <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>}
-              {tableOrders.length > 0 && store.tablePaymentsEnabled && <button className="ghost-button" onClick={closeTable}><CreditCard size={16} /> Receber e fechar</button>}
             </div>
             {tableOrders.length ? (
               <section className="table-consumption">
                 <div className="table-consumption-head"><div><strong>Consumo da mesa</strong><small>Itens enviados pelos garcons</small></div><b>{BRL.format(tableAccountTotal)}</b></div>
-                {tableOrders.map((order) => (
-                  <article className="table-order-group" key={order.id}>
-                    <header><span><strong>Pedido #{order.id}</strong><small>{order.waiter ? `Garcom: ${order.waiter}` : 'Lancado pelo estabelecimento'} · {order.createdAt}</small></span><em className={order.status === 'Pendente' ? 'pending-pill' : 'green-pill'}>{order.status}</em></header>
-                    {order.items.map((item, index) => (
-                      <div className="table-consumption-item" key={`${order.id}-${item.productId}-${index}`}>
-                        <span><strong>{item.qty}x {item.name}</strong>{formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}{item.notes && <small>Obs: {item.notes}</small>}</span>
-                        <b>{BRL.format(item.qty * itemUnitPrice(item))}</b>
+                <div className="table-account-summary">
+                  {Object.entries(tableAccountItems).map(([key, item]) => (
+                    <details className="table-account-item" key={key}>
+                      <summary>
+                        <span><strong>{item.qty}x {item.name}</strong>{item.optionsText && <small>{item.optionsText}</small>}{item.notes && <small>Obs: {item.notes}</small>}</span>
+                        <b>{BRL.format(item.total)}</b>
+                        <ChevronDown size={17} />
+                      </summary>
+                      <div className="table-item-launches">
+                        <strong>Quem lancou este item</strong>
+                        {item.launches.map((launch, index) => <span key={`${launch.orderId}-${index}`}><em>{launch.qty}x · {launch.waiter}</em><small>Pedido #{launch.orderId} · {launch.createdAt}</small></span>)}
                       </div>
-                    ))}
-                    <footer><span>Subtotal do pedido</span><strong>{BRL.format(orderTotal(order))}</strong></footer>
-                  </article>
-                ))}
+                    </details>
+                  ))}
+                </div>
+                <div className="table-consumption-footer">
+                  <span><small>Total acumulado</small><strong>{BRL.format(tableAccountTotal)}</strong></span>
+                  {store.tablePaymentsEnabled && <button className="orange-button" onClick={closeTable}><CreditCard size={18} /> Receber e fechar mesa</button>}
+                </div>
               </section>
             ) : (
               <>
