@@ -1925,6 +1925,78 @@ input[type="file"] {
   font-size: 19px;
 }
 
+.table-consumption {
+  display: grid;
+  gap: 12px;
+}
+
+.table-consumption-head,
+.table-order-group header,
+.table-order-group footer,
+.table-consumption-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.table-consumption-head {
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+}
+
+.table-consumption-head div,
+.table-order-group header span,
+.table-consumption-item span {
+  display: grid;
+  gap: 3px;
+}
+
+.table-consumption-head small,
+.table-order-group small,
+.table-consumption-item small {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.table-consumption-head > b {
+  color: #e94b08;
+  font-size: 21px;
+}
+
+.table-order-group {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.table-order-group header,
+.table-order-group footer {
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.table-order-group header em {
+  font-style: normal;
+}
+
+.table-order-group footer {
+  border-top: 1px solid #e2e8f0;
+}
+
+.table-consumption-item {
+  padding: 10px 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.table-consumption-item > b {
+  white-space: nowrap;
+  color: #e94b08;
+}
+
 .order-type-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 240px));

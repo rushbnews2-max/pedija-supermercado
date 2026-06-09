@@ -1582,6 +1582,7 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
   const tableStatus = (table) => openOrdersForTable(table.id).length ? 'Ocupada' : 'Livre';
   const visibleTables = tables.filter((table) => tableFilter === 'Todas' || tableStatus(table) === tableFilter);
   const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && order.settled !== true && order.status !== 'Cancelado') : [];
+  const tableAccountTotal = tableOrders.reduce((sum, order) => sum + orderTotal(order), 0);
   const cartItems = Object.entries(cart).map(([key, entry]) => {
     const product = products.find((item) => item.id === entry.productId);
     return product ? {
@@ -1735,28 +1736,48 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
               <button type="button" onClick={() => setSelectedTable(null)}><X size={20} /></button>
             </div>
             <div className="local-order-actions">
-              <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>
+              {!tableOrders.length && <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>}
               {tableOrders.length > 0 && store.tablePaymentsEnabled && <button className="ghost-button" onClick={closeTable}><CreditCard size={16} /> Receber e fechar</button>}
             </div>
-            <div className="local-product-list">
-              {activeProducts.map((product) => (
-                <button type="button" onClick={() => addProductToTable(product)} key={product.id}>
-                  <ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} />
-                </button>
-              ))}
-            </div>
-            <div className="local-cart">
-              <strong>Nova solicitacao</strong>
-              {cartItems.map((item) => (
-                <div className="local-cart-item" key={item.cartKey}>
-                  <span><strong>{item.name}</strong><small>{formatItemOptions(item)}</small></span>
-                  <div><button type="button" onClick={() => changeQty(item.cartKey, -1)}>-</button><b>{item.qty}</b><button type="button" onClick={() => changeQty(item.cartKey, 1)}>+</button></div>
+            {tableOrders.length ? (
+              <section className="table-consumption">
+                <div className="table-consumption-head"><div><strong>Consumo da mesa</strong><small>Itens enviados pelos garcons</small></div><b>{BRL.format(tableAccountTotal)}</b></div>
+                {tableOrders.map((order) => (
+                  <article className="table-order-group" key={order.id}>
+                    <header><span><strong>Pedido #{order.id}</strong><small>{order.waiter ? `Garcom: ${order.waiter}` : 'Lancado pelo estabelecimento'} · {order.createdAt}</small></span><em className={order.status === 'Pendente' ? 'pending-pill' : 'green-pill'}>{order.status}</em></header>
+                    {order.items.map((item, index) => (
+                      <div className="table-consumption-item" key={`${order.id}-${item.productId}-${index}`}>
+                        <span><strong>{item.qty}x {item.name}</strong>{formatItemOptions(item) && <small>{formatItemOptions(item)}</small>}{item.notes && <small>Obs: {item.notes}</small>}</span>
+                        <b>{BRL.format(item.qty * itemUnitPrice(item))}</b>
+                      </div>
+                    ))}
+                    <footer><span>Subtotal do pedido</span><strong>{BRL.format(orderTotal(order))}</strong></footer>
+                  </article>
+                ))}
+              </section>
+            ) : (
+              <>
+                <div className="local-product-list">
+                  {activeProducts.map((product) => (
+                    <button type="button" onClick={() => addProductToTable(product)} key={product.id}>
+                      <ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} />
+                    </button>
+                  ))}
                 </div>
-              ))}
-              {!cartItems.length && <p className="empty">Selecione os produtos que o cliente pediu.</p>}
-              <div className="local-cart-total"><span>Total desta solicitacao</span><strong>{BRL.format(cartTotal)}</strong></div>
-              <button className="orange-button" type="button" disabled={!cartItems.length || sending} onClick={sendToKitchen}><ShoppingBag size={18} /> {sending ? 'Enviando...' : 'Enviar para preparo'}</button>
-            </div>
+                <div className="local-cart">
+                  <strong>Nova solicitacao</strong>
+                  {cartItems.map((item) => (
+                    <div className="local-cart-item" key={item.cartKey}>
+                      <span><strong>{item.name}</strong><small>{formatItemOptions(item)}</small></span>
+                      <div><button type="button" onClick={() => changeQty(item.cartKey, -1)}>-</button><b>{item.qty}</b><button type="button" onClick={() => changeQty(item.cartKey, 1)}>+</button></div>
+                    </div>
+                  ))}
+                  {!cartItems.length && <p className="empty">Selecione os produtos que o cliente pediu.</p>}
+                  <div className="local-cart-total"><span>Total desta solicitacao</span><strong>{BRL.format(cartTotal)}</strong></div>
+                  <button className="orange-button" type="button" disabled={!cartItems.length || sending} onClick={sendToKitchen}><ShoppingBag size={18} /> {sending ? 'Enviando...' : 'Enviar para preparo'}</button>
+                </div>
+              </>
+            )}
           </section>
         </div>
       )}
