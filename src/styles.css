@@ -584,6 +584,7 @@ a {
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
 }
 
 .brand {
@@ -607,15 +608,16 @@ a {
 }
 
 .sidebar nav {
-  padding: 16px 12px;
+  padding: 12px;
 }
 
-.sidebar button {
+.sidebar nav > button,
+.sidebar-group > div > button {
   width: 100%;
-  min-height: 48px;
+  min-height: 42px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -623,22 +625,50 @@ a {
   font-weight: 650;
   text-align: left;
   padding: 0 14px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   cursor: pointer;
 }
 
-.sidebar button svg {
+.sidebar nav > button svg,
+.sidebar-group > div > button svg {
   color: #9aa5b5;
 }
 
-.sidebar button.active {
+.sidebar nav > button.active,
+.sidebar-group > div > button.active {
   border-color: #858585;
   background: #fff7ee;
   color: var(--orange);
 }
 
-.sidebar button.active svg {
+.sidebar nav > button.active svg,
+.sidebar-group > div > button.active svg {
   color: var(--orange);
+}
+
+.sidebar-group {
+  margin-bottom: 6px;
+}
+
+.sidebar .sidebar-group-toggle {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  color: #7a879a;
+  padding: 0 10px;
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sidebar .sidebar-group-toggle svg {
+  color: #94a3b8;
 }
 
 .sidebar .logout-button {
@@ -711,6 +741,10 @@ a {
   padding: 28px 32px 54px;
   max-width: 1040px;
   width: 100%;
+}
+
+.content:has(.salon-cashier) {
+  max-width: 1280px;
 }
 
 .page-header {
@@ -1852,6 +1886,105 @@ input[type="file"] {
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 16px;
+}
+
+.salon-cashier .page-header {
+  margin-bottom: 16px;
+}
+
+.salon-cashier-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.salon-cashier-strip article {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.salon-cashier-strip article svg {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 7px;
+  background: #fff7ed;
+  color: #e94b08;
+}
+
+.salon-cashier-strip article span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.salon-cashier-strip small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.salon-cashier-strip strong {
+  overflow-wrap: anywhere;
+  font-size: 19px;
+}
+
+.cashier-toolbar {
+  min-height: 48px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cashier-toolbar > strong {
+  color: #334155;
+}
+
+.cashier-toolbar .tabs {
+  margin: 0;
+}
+
+.salon-cashier .table-grid {
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 12px;
+}
+
+.salon-cashier .table-card {
+  min-height: 132px;
+  border-width: 2px;
+}
+
+.salon-cashier .table-card > button:first-child {
+  min-height: 132px;
+}
+
+.salon-cashier .table-card > button:first-child strong {
+  font-size: 20px;
+}
+
+.salon-cashier .table-card > button:first-child small {
+  display: grid;
+  gap: 3px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.salon-cashier .table-card > button:first-child small b {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.salon-cashier .table-card.occupied {
+  border-color: #f59e0b;
+  background: #fffbeb;
 }
 
 .waiter-list {
@@ -4346,8 +4479,12 @@ input[type="file"] {
   }
 
   .sidebar nav {
+    display: block;
+  }
+
+  .sidebar-group > div {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .content {
@@ -4365,6 +4502,15 @@ input[type="file"] {
   .delivery-board,
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .salon-cashier-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cashier-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .client-card,

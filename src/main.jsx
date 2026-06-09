@@ -387,23 +387,30 @@ async function migrateLocalData() {
 }
 
 function Sidebar({ page, setPage, onLogout, role, store = {} }) {
-  const masterLinks = [
-    ['master', 'Painel Master', Shield]
+  const groups = role === 'master' ? [
+    ['Plataforma', [['master', 'Painel Master', Shield]]]
+  ] : [
+    ['Visao geral', [['painel', 'Painel do Sistema', Shield]]],
+    ['Vendas', [
+      ['pedidos', 'Pedidos', ShoppingBag],
+      ...(store.localServiceEnabled ? [['atendimento-local', 'Caixa do salao', ReceiptText]] : []),
+      ...(store.localServiceEnabled && store.tablePaymentsEnabled ? [['caixa-local', 'Historico do caixa', CreditCard]] : []),
+      ['entregas', 'Entregas', Truck]
+    ]],
+    ['Catalogo', [
+      ['produtos', 'Produtos', Box],
+      ['cupons', 'Cupons', Tag],
+      ['estabelecimentos', 'Minha loja', Store]
+    ]],
+    ['Equipe', [
+      ...(store.localServiceEnabled && store.waiterAppEnabled ? [['garcons', 'Garcons', Users]] : []),
+      ['usuarios', 'Usuarios', Users]
+    ]],
+    ['Financeiro', [['relatorios', 'Relatorios', BarChart3]]]
   ];
-  const storeLinks = [
-    ['painel', 'Painel do Sistema', Shield],
-    ['estabelecimentos', 'Estabelecimentos', Store],
-    ['produtos', 'Produtos', Box],
-    ['pedidos', 'Pedidos', ShoppingBag],
-    ...(store.localServiceEnabled ? [['atendimento-local', 'Atendimento local', ReceiptText]] : []),
-    ...(store.localServiceEnabled && store.waiterAppEnabled ? [['garcons', 'Garcons', Users]] : []),
-    ...(store.localServiceEnabled && store.tablePaymentsEnabled ? [['caixa-local', 'Caixa local', CreditCard]] : []),
-    ['entregas', 'Entregas', Truck],
-    ['relatorios', 'Relatorios', BarChart3],
-    ['cupons', 'Cupons', Tag],
-    ['usuarios', 'Usuarios', Users]
-  ];
-  const links = role === 'master' ? masterLinks : storeLinks;
+  const activeGroup = groups.find(([_, links]) => links.some(([id]) => id === page))?.[0] || groups[0][0];
+  const [openGroups, setOpenGroups] = React.useState(() => ({ [activeGroup]: true, 'Visao geral': true, Vendas: true }));
+  React.useEffect(() => setOpenGroups((current) => ({ ...current, [activeGroup]: true })), [activeGroup]);
 
   return (
     <aside className="sidebar">
@@ -412,11 +419,18 @@ function Sidebar({ page, setPage, onLogout, role, store = {} }) {
         <small>Sistema de Pedidos</small>
       </div>
       <nav>
-        {links.map(([id, label, Icon]) => (
-          <button className={page === id ? 'active' : ''} key={id} onClick={() => setPage(id)}>
-            <Icon size={20} />
-            <span>{label}</span>
-          </button>
+        {groups.map(([group, links]) => (
+          <section className="sidebar-group" key={group}>
+            <button className="sidebar-group-toggle" type="button" onClick={() => setOpenGroups((current) => ({ ...current, [group]: !current[group] }))}>
+              <span>{group}</span>{openGroups[group] ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+            {openGroups[group] && <div>{links.map(([id, label, Icon]) => (
+              <button className={page === id ? 'active' : ''} key={id} onClick={() => setPage(id)}>
+                <Icon size={19} />
+                <span>{label}</span>
+              </button>
+            ))}</div>}
+          </section>
         ))}
         <button className="logout-button" onClick={onLogout}>
           <X size={20} />
@@ -1583,6 +1597,14 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
   const openOrdersForTable = (tableId) => orders.filter((order) => order.serviceType === 'local' && order.tableId === tableId && order.settled !== true && order.status !== 'Cancelado');
   const tableStatus = (table) => openOrdersForTable(table.id).length ? 'Ocupada' : 'Livre';
   const visibleTables = tables.filter((table) => tableFilter === 'Todas' || tableStatus(table) === tableFilter);
+  const occupiedTables = tables.filter((table) => tableStatus(table) === 'Ocupada');
+  const openLocalOrders = orders.filter((order) => order.serviceType === 'local' && order.settled !== true && order.status !== 'Cancelado');
+  const openLocalTotal = openLocalOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+  const pendingPreparation = openLocalOrders.filter((order) => ['Pendente', 'Em separacao'].includes(order.status)).length;
+  const readyToReceive = occupiedTables.filter((table) => {
+    const tableOpenOrders = openOrdersForTable(table.id);
+    return tableOpenOrders.length && tableOpenOrders.every((order) => order.status === 'Entregue');
+  }).length;
   const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && order.settled !== true && order.status !== 'Cancelado') : [];
   const tableAccountTotal = tableOrders.reduce((sum, order) => sum + orderTotal(order), 0);
   const tableAccountItems = tableOrders.reduce((grouped, order) => {
@@ -1726,12 +1748,19 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
   };
 
   return (
-    <>
-      <PageHeader title="Atendimento local" subtitle="Abra mesas e envie pedidos direto para o preparo">
+    <section className="salon-cashier">
+      <PageHeader title="Caixa do salao" subtitle="Acompanhe o consumo das mesas e receba as contas">
         <button className="orange-button" onClick={addTable}><Plus size={18} /> Nova mesa</button>
       </PageHeader>
       {status && <p className="form-status">{status}</p>}
-      <div className="local-service-toolbar">
+      <section className="salon-cashier-strip">
+        <article><ReceiptText size={20} /><span><small>Mesas ocupadas</small><strong>{occupiedTables.length}</strong></span></article>
+        <article><CreditCard size={20} /><span><small>Valor em aberto</small><strong>{BRL.format(openLocalTotal)}</strong></span></article>
+        <article><Clock size={20} /><span><small>Em preparo</small><strong>{pendingPreparation}</strong></span></article>
+        <article><Check size={20} /><span><small>Prontas para receber</small><strong>{readyToReceive}</strong></span></article>
+      </section>
+      <div className="local-service-toolbar cashier-toolbar">
+        <strong>Mapa de mesas</strong>
         <div className="tabs">
           {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || tableStatus(table) === name).length})</button>)}
         </div>
@@ -1741,12 +1770,15 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
       ) : (
         <section className="table-grid">
             {visibleTables.map((table) => {
-              const activeCount = openOrdersForTable(table.id).length;
+              const activeOrders = openOrdersForTable(table.id);
+              const activeCount = activeOrders.length;
+              const tableTotal = activeOrders.reduce((sum, order) => sum + orderTotal(order), 0);
               const currentStatus = tableStatus(table);
               return (
                 <article className={`table-card ${currentStatus === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
                   <button type="button" onClick={() => { setSelectedTable(table); setSelectedWaiter(''); setCart({}); setStatus(''); }}>
-                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{currentStatus}</span>{activeCount > 0 && <small>{activeCount} pedidos ativos</small>}
+                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{currentStatus}</span>
+                    {activeCount > 0 && <small>{activeCount} {activeCount === 1 ? 'pedido' : 'pedidos'} · <b>{BRL.format(tableTotal)}</b></small>}
                   </button>
                   <button type="button" className="table-delete" onClick={() => removeTable(table)} aria-label={`Excluir ${table.name}`}><Trash2 size={15} /></button>
                 </article>
@@ -1815,7 +1847,7 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
       )}
       {customizingProduct && <ProductCustomizeModal store={store} product={customizingProduct} onClose={() => setCustomizingProduct(null)} onAdd={(options) => { addConfiguredItem(customizingProduct, options); setCustomizingProduct(null); }} />}
       {closingTable && <TableCheckoutModal table={closingTable} orders={tableOrders} onClose={() => setClosingTable(null)} onConfirm={async (settlement) => { await closeLocalTable({ tableId: closingTable.id, ...settlement }); setClosingTable(null); setSelectedTable(null); setCart({}); setStatus(`${closingTable.name} recebida e liberada.`); }} />}
-    </>
+    </section>
   );
 }
 
