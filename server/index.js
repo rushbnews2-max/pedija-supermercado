@@ -10,6 +10,13 @@ const app = express();
 const port = Number(process.env.PORT || 3001);
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const tokens = new Map();
+const ALL_STORE_PERMISSIONS = ['dashboard', 'orders', 'local_cash', 'catalog', 'coupons', 'store', 'team', 'reports', 'audit'];
+const PROFILE_PERMISSIONS = {
+  admin: ALL_STORE_PERMISSIONS,
+  manager: ['dashboard', 'orders', 'local_cash', 'catalog', 'coupons', 'store', 'team', 'reports', 'audit'],
+  cashier: ['dashboard', 'orders', 'local_cash', 'reports'],
+  operator: ['dashboard', 'orders']
+};
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -32,14 +39,19 @@ app.post('/api/login', (req, res) => {
       const establishment = withPlatformDefaults(db).establishments.find((item) => item.catalogSlug === catalogSlug);
       const user = String(req.body?.user || '').trim();
       const expectedUser = String(establishment?.adminUser || 'admin').trim();
-      if (!establishment || user !== expectedUser || req.body?.password !== establishment.adminPassword) {
+      const teamUser = safeArray(establishment?.teamUsers).find((item) => item.active !== false && item.user === user && item.password === req.body?.password);
+      const isOwner = establishment && user === expectedUser && req.body?.password === establishment.adminPassword;
+      if (!isOwner && !teamUser) {
         res.status(401).json({ message: 'Senha invalida' });
         return;
       }
 
       const token = crypto.randomUUID();
-      tokens.set(token, { role: 'store', establishmentId: establishment.id });
-      res.json({ token, role: 'store', establishmentId: establishment.id });
+      const currentUser = isOwner
+        ? { id: 'owner', name: 'Administrador', user: expectedUser, profile: 'admin', permissions: ALL_STORE_PERMISSIONS }
+        : { ...teamUser, password: undefined, permissions: permissionsForProfile(teamUser.profile, teamUser.permissions) };
+      tokens.set(token, { role: 'store', establishmentId: establishment.id, currentUser });
+      res.json({ token, role: 'store', establishmentId: establishment.id, currentUser });
     }).catch(() => res.status(500).json({ message: 'Erro ao entrar' }));
     return;
   }
@@ -129,16 +141,19 @@ app.get('/api/public/orders/:id', async (req, res) => {
 app.use('/api/bootstrap', requireAdmin);
 app.use('/api/migrate-local', requireAdmin);
 app.use('/api/establishments', requireMaster);
-app.use('/api/store', requireAdmin);
-app.use('/api/products', requireAdmin);
-app.use('/api/coupons', requireAdmin);
-app.use('/api/downloads', requireAdmin);
+app.use('/api/store', requireAdmin, requirePermission('store'));
+app.use('/api/products', requireAdmin, requirePermission('catalog'));
+app.use('/api/coupons', requireAdmin, requirePermission('coupons'));
+app.use('/api/downloads', requireAdmin, requirePermission('store'));
 app.use('/api/orders', (req, res, next) => {
   if (req.method === 'POST') return next();
-  return requireAdmin(req, res, next);
+  return requireAdmin(req, res, () => requirePermission('orders')(req, res, next));
 });
-app.use('/api/local-service', requireAdmin);
+app.use('/api/local-service', requireAdmin, requirePermission('local_cash'));
+app.use('/api/team-users', requireAdmin);
+app.use('/api/audit-logs', requireAdmin);
 app.use('/api/waiter', (req, res, next) => req.path === '/login' ? next() : requireWaiter(req, res, next));
+app.use(recordAuditTrail);
 
 app.get('/api/bootstrap', async (req, res) => {
   const db = await ensurePlatformDefaults();
@@ -147,12 +162,16 @@ app.get('/api/bootstrap', async (req, res) => {
 
   if (session.role === 'store') {
     const scoped = getStoreBySession(data, session);
+    const permissions = session.currentUser?.permissions || ALL_STORE_PERMISSIONS;
     res.json({
       role: 'store',
       store: scoped.store,
-      products: scoped.products,
+      products: permissions.includes('catalog') ? scoped.products : [],
       orders: scoped.orders,
-      coupons: scoped.coupons
+      coupons: permissions.includes('coupons') ? scoped.coupons : [],
+      teamUsers: permissions.includes('team') ? scoped.teamUsers.map(({ password, ...user }) => user) : [],
+      auditLogs: permissions.includes('audit') ? scoped.auditLogs : [],
+      currentUser: session.currentUser || null
     });
     return;
   }
@@ -164,6 +183,51 @@ app.get('/api/bootstrap', async (req, res) => {
     orders: [],
     coupons: []
   });
+});
+
+app.get('/api/team-users', requirePermission('team'), async (req, res) => {
+  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), getSession(req));
+  res.json(scoped.teamUsers.map(({ password, ...user }) => user));
+});
+
+app.post('/api/team-users', requirePermission('team'), async (req, res) => {
+  const session = getSession(req);
+  const user = normalizeTeamUser({ ...req.body, id: crypto.randomUUID() });
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+    ...establishment,
+    teamUsers: [user, ...safeArray(establishment.teamUsers)]
+  })));
+  const { password, ...safeUser } = user;
+  res.status(201).json(safeUser);
+});
+
+app.put('/api/team-users/:id', requirePermission('team'), async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+    ...establishment,
+    teamUsers: safeArray(establishment.teamUsers).map((user) => {
+      if (user.id !== req.params.id) return user;
+      saved = normalizeTeamUser({ ...user, ...req.body, password: req.body.password || user.password, id: user.id });
+      return saved;
+    })
+  })));
+  const { password, ...safeUser } = saved;
+  res.json(safeUser);
+});
+
+app.delete('/api/team-users/:id', requirePermission('team'), async (req, res) => {
+  const session = getSession(req);
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+    ...establishment,
+    teamUsers: safeArray(establishment.teamUsers).filter((user) => user.id !== req.params.id)
+  })));
+  res.status(204).end();
+});
+
+app.get('/api/audit-logs', requirePermission('audit'), async (req, res) => {
+  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), getSession(req));
+  res.json(scoped.auditLogs.slice(0, 300));
 });
 
 app.get('/api/waiter/bootstrap', async (req, res) => {
@@ -621,6 +685,43 @@ function requireWaiter(req, res, next) {
   next();
 }
 
+function requirePermission(permission) {
+  return (req, res, next) => {
+    const session = getSession(req);
+    if (session.role === 'master') return next();
+    const permissions = session.currentUser?.permissions || ALL_STORE_PERMISSIONS;
+    if (session.role !== 'store' || !permissions.includes(permission)) {
+      res.status(403).json({ message: 'Seu usuario nao possui permissao para esta acao.' });
+      return;
+    }
+    next();
+  };
+}
+
+function recordAuditTrail(req, res, next) {
+  const session = getSession(req);
+  if (session.role !== 'store' || !['POST', 'PUT', 'DELETE'].includes(req.method) || req.path === '/api/logout') {
+    next();
+    return;
+  }
+
+  res.on('finish', () => {
+    if (res.statusCode >= 400) return;
+    const action = `${req.method} ${req.path}`;
+    updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+      ...establishment,
+      auditLogs: [{
+        id: crypto.randomUUID(),
+        action,
+        user: session.currentUser?.name || session.currentUser?.user || 'Administrador',
+        profile: session.currentUser?.profile || 'admin',
+        createdAt: new Date().toISOString()
+      }, ...safeArray(establishment.auditLogs)].slice(0, 1000)
+    }))).catch(() => {});
+  });
+  next();
+}
+
 function getToken(req) {
   const header = req.get('authorization') || '';
   return header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -707,6 +808,28 @@ function normalizeEstablishment(value) {
     })) : [],
     orders: Array.isArray(value.orders) ? value.orders.filter((order) => order && typeof order === 'object') : [],
     coupons: Array.isArray(value.coupons) ? value.coupons.filter((coupon) => coupon && typeof coupon === 'object').map((coupon) => normalizeCoupon(coupon)) : []
+    ,teamUsers: safeArray(value.teamUsers).map(normalizeTeamUser),
+    auditLogs: safeArray(value.auditLogs)
+  };
+}
+
+function permissionsForProfile(profile, customPermissions) {
+  const defaults = PROFILE_PERMISSIONS[profile] || PROFILE_PERMISSIONS.operator;
+  return Array.isArray(customPermissions) && customPermissions.length
+    ? customPermissions.filter((permission) => ALL_STORE_PERMISSIONS.includes(permission))
+    : defaults;
+}
+
+function normalizeTeamUser(value) {
+  const profile = ['admin', 'manager', 'cashier', 'operator'].includes(value.profile) ? value.profile : 'operator';
+  return {
+    id: value.id || crypto.randomUUID(),
+    name: String(value.name || value.user || 'Usuario').trim(),
+    user: String(value.user || '').trim(),
+    password: String(value.password || '').trim(),
+    profile,
+    permissions: permissionsForProfile(profile, value.permissions),
+    active: value.active !== false
   };
 }
 
@@ -920,12 +1043,14 @@ function getStoreBySession(db, session) {
       store: db.store,
       products: db.products || [],
       orders: db.orders || [],
-      coupons: db.coupons || []
+      coupons: db.coupons || [],
+      teamUsers: [],
+      auditLogs: []
     };
   }
 
   const establishment = db.establishments.find((item) => item.id === session.establishmentId);
-  if (!establishment) return { store: db.store, products: [], orders: [], coupons: [] };
+  if (!establishment) return { store: db.store, products: [], orders: [], coupons: [], teamUsers: [], auditLogs: [] };
 
   return {
     store: {
@@ -934,7 +1059,9 @@ function getStoreBySession(db, session) {
     },
     products: establishment.products || [],
     orders: establishment.orders || [],
-    coupons: establishment.coupons || []
+    coupons: establishment.coupons || [],
+    teamUsers: establishment.teamUsers || [],
+    auditLogs: establishment.auditLogs || []
   };
 }
 

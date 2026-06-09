@@ -386,8 +386,14 @@ async function migrateLocalData() {
   return data;
 }
 
-function Sidebar({ page, setPage, onLogout, role, store = {} }) {
-  const groups = role === 'master' ? [
+function Sidebar({ page, setPage, onLogout, role, store = {}, currentUser }) {
+  const pagePermissions = {
+    painel: 'dashboard', pedidos: 'orders', 'atendimento-local': 'local_cash', 'caixa-local': 'local_cash',
+    entregas: 'orders', produtos: 'catalog', cupons: 'coupons', estabelecimentos: 'store',
+    garcons: 'team', usuarios: 'team', relatorios: 'reports'
+  };
+  const canAccess = (id) => !currentUser?.permissions?.length || currentUser.permissions.includes(pagePermissions[id]);
+  const baseGroups = role === 'master' ? [
     ['Plataforma', [['master', 'Painel Master', Shield]]]
   ] : [
     ['Visao geral', [['painel', 'Painel do Sistema', Shield]]],
@@ -408,6 +414,7 @@ function Sidebar({ page, setPage, onLogout, role, store = {} }) {
     ]],
     ['Financeiro', [['relatorios', 'Relatorios', BarChart3]]]
   ];
+  const groups = baseGroups.map(([group, links]) => [group, links.filter(([id]) => canAccess(id))]).filter(([_, links]) => links.length);
   const activeGroup = groups.find(([_, links]) => links.some(([id]) => id === page))?.[0] || groups[0][0];
   const [openGroups, setOpenGroups] = React.useState(() => ({ [activeGroup]: true, 'Visao geral': true, Vendas: true }));
   React.useEffect(() => setOpenGroups((current) => ({ ...current, [activeGroup]: true })), [activeGroup]);
@@ -701,6 +708,9 @@ function App() {
   });
   const [authToken, setAuthToken] = React.useState(() => localStorage.getItem('pedija-admin-token') || '');
   const [role, setRole] = React.useState('');
+  const [currentUser, setCurrentUser] = React.useState(null);
+  const [teamUsers, setTeamUsers] = React.useState([]);
+  const [auditLogs, setAuditLogs] = React.useState([]);
   const [storeData, setStoreData] = React.useState(initialStore);
   const [establishments, setEstablishments] = React.useState([]);
   const [products, setProducts] = React.useState(initialProducts);
@@ -786,6 +796,9 @@ function App() {
         setProducts(data.products);
         setOrders(data.orders);
         setCoupons(data.coupons || []);
+        setCurrentUser(data.currentUser || null);
+        setTeamUsers(data.teamUsers || []);
+        setAuditLogs(data.auditLogs || []);
         if (!isPublicPage) {
           if (data.role === 'master' && pageRef.current !== 'master') setPage('master');
           if (data.role === 'store' && pageRef.current === 'master') setPage('painel');
@@ -849,6 +862,7 @@ function App() {
     });
     localStorage.setItem('pedija-admin-token', data.token);
     setRole(data.role);
+    setCurrentUser(data.currentUser || null);
     setAuthToken(data.token);
     setPage(data.role === 'master' ? 'master' : 'painel');
   };
@@ -860,6 +874,7 @@ function App() {
       localStorage.removeItem('pedija-admin-token');
       setAuthToken('');
       setRole('');
+      setCurrentUser(null);
       setPage(adminSlug ? 'painel' : 'master');
     }
   };
@@ -973,6 +988,21 @@ function App() {
     return saved;
   };
 
+  const createTeamUser = async (user) => {
+    const saved = await api('/api/team-users', { method: 'POST', body: JSON.stringify(user) });
+    setTeamUsers((current) => [saved, ...current]);
+  };
+
+  const updateTeamUser = async (user) => {
+    const saved = await api(`/api/team-users/${user.id}`, { method: 'PUT', body: JSON.stringify(user) });
+    setTeamUsers((current) => current.map((item) => item.id === saved.id ? saved : item));
+  };
+
+  const deleteTeamUser = async (id) => {
+    await api(`/api/team-users/${id}`, { method: 'DELETE' });
+    setTeamUsers((current) => current.filter((item) => item.id !== id));
+  };
+
   if (isWaiterPage) {
     return <WaiterPortal slug={waiterSlug} />;
   }
@@ -1027,7 +1057,7 @@ function App() {
 
   return (
     <div className="shell">
-      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} store={storeData} />
+      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} store={storeData} currentUser={currentUser} />
       <main className="content">
         {role === 'master' ? (
           <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />
@@ -1043,7 +1073,7 @@ function App() {
             {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
-            {page === 'usuarios' && <UsersPage />}
+            {page === 'usuarios' && <UsersPage users={teamUsers} auditLogs={auditLogs} createUser={createTeamUser} updateUser={updateTeamUser} deleteUser={deleteTeamUser} />}
           </>
         )}
       </main>
@@ -3959,14 +3989,59 @@ function CouponModal({ coupon, onSave, onClose }) {
   );
 }
 
-function UsersPage() {
+function UsersPage({ users, auditLogs, createUser, updateUser, deleteUser }) {
+  const [tab, setTab] = React.useState('Equipe');
+  const [editing, setEditing] = React.useState(null);
+  const profileLabels = { admin: 'Administrador', manager: 'Gerente', cashier: 'Caixa', operator: 'Operador' };
+  const startNew = () => setEditing({ name: '', user: '', password: '', profile: 'operator', active: true });
+  const save = async (event) => {
+    event.preventDefault();
+    if (editing.id) await updateUser(editing);
+    else await createUser(editing);
+    setEditing(null);
+  };
+
   return (
     <>
-      <PageHeader title="Usuarios" subtitle="Controle acessos da equipe" />
-      <section className="category-list">
-        <article><Users size={18} /><strong>Administrador</strong><span>Acesso total</span></article>
-        <article><Store size={18} /><strong>Operador PDV</strong><span>Pedidos e impressao</span></article>
-      </section>
+      <PageHeader title="Equipe e seguranca" subtitle="Controle acessos e acompanhe alteracoes importantes">
+        <button className="orange-button" type="button" onClick={startNew}><Plus size={18} /> Novo usuario</button>
+      </PageHeader>
+      <div className="tabs">
+        {['Equipe', 'Historico'].map((item) => <button type="button" className={tab === item ? 'active' : ''} onClick={() => setTab(item)} key={item}>{item}</button>)}
+      </div>
+      {tab === 'Equipe' ? (
+        <section className="team-user-list">
+          <article className="team-user-card owner"><Shield size={20} /><span><strong>Administrador principal</strong><small>Acesso total e senha definida pelo Painel Master</small></span><b>Proprietario</b></article>
+          {users.map((user) => (
+            <article className="team-user-card" key={user.id}>
+              <Users size={20} />
+              <span><strong>{user.name}</strong><small>{user.user} · {profileLabels[user.profile] || user.profile}</small></span>
+              <b className={user.active !== false ? 'active-user' : ''}>{user.active !== false ? 'Ativo' : 'Bloqueado'}</b>
+              <button type="button" onClick={() => setEditing({ ...user, password: '' })} aria-label={`Editar ${user.name}`}><Edit3 size={16} /></button>
+              <button type="button" onClick={() => confirm(`Excluir o usuario "${user.name}"?`) && deleteUser(user.id)} aria-label={`Excluir ${user.name}`}><Trash2 size={16} /></button>
+            </article>
+          ))}
+          {!users.length && <article className="placeholder-panel"><strong>Nenhum usuario adicional</strong><p>Cadastre caixas, gerentes e operadores com acessos separados.</p></article>}
+        </section>
+      ) : (
+        <section className="audit-list">
+          {auditLogs.map((log) => <article key={log.id}><span><strong>{log.user}</strong><small>{profileLabels[log.profile] || log.profile}</small></span><b>{log.action}</b><time>{new Date(log.createdAt).toLocaleString('pt-BR')}</time></article>)}
+          {!auditLogs.length && <article className="placeholder-panel"><strong>Nenhuma alteracao registrada</strong><p>As proximas alteracoes importantes aparecerao aqui.</p></article>}
+        </section>
+      )}
+      {editing && (
+        <div className="overlay">
+          <form className="modal team-user-modal" onSubmit={save}>
+            <div className="modal-head"><div><h2>{editing.id ? 'Editar usuario' : 'Novo usuario'}</h2><small>Defina o perfil de acesso deste colaborador</small></div><button type="button" onClick={() => setEditing(null)}><X size={20} /></button></div>
+            <label>Nome<input value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} required /></label>
+            <label>Usuario de acesso<input value={editing.user} onChange={(event) => setEditing({ ...editing, user: event.target.value })} required /></label>
+            <label>{editing.id ? 'Nova senha (deixe vazio para manter)' : 'Senha'}<input type="password" value={editing.password} onChange={(event) => setEditing({ ...editing, password: event.target.value })} required={!editing.id} /></label>
+            <label>Perfil<select value={editing.profile} onChange={(event) => setEditing({ ...editing, profile: event.target.value })}><option value="manager">Gerente</option><option value="cashier">Caixa</option><option value="operator">Operador</option><option value="admin">Administrador</option></select></label>
+            <label className="check-line"><input type="checkbox" checked={editing.active !== false} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} /> Usuario ativo</label>
+            <button className="orange-button" type="submit"><Check size={18} /> Salvar usuario</button>
+          </form>
+        </div>
+      )}
     </>
   );
 }

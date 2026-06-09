@@ -4,4 +4,6 @@ dist/
 .vs/
 *.log
 server/data/*.json
+server/data/*.tmp
+server/data/backups/
 backups/

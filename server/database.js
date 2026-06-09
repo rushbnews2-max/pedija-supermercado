@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -170,10 +170,30 @@ export async function readDb() {
 
 export async function writeDb(data) {
   await mkdir(dataDir, { recursive: true });
+  await writeDailyBackup();
   const tempPath = join(dataDir, `database.${process.pid}.${Date.now()}.tmp`);
   await writeFile(tempPath, JSON.stringify(data, null, 2));
   await rename(tempPath, dbPath);
   return data;
+}
+
+async function writeDailyBackup() {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const backupDir = join(dataDir, 'backups');
+    const backupPath = join(backupDir, `database-${day}.json`);
+    await access(backupPath);
+  } catch {
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      const backupDir = join(dataDir, 'backups');
+      await mkdir(backupDir, { recursive: true });
+      const current = await readFile(dbPath, 'utf-8');
+      await writeFile(join(backupDir, `database-${day}.json`), current);
+    } catch {
+      // O primeiro banco ainda nao possui uma versao anterior para copiar.
+    }
+  }
 }
 
 export async function updateDb(updater) {
