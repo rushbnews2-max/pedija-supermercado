@@ -397,6 +397,7 @@ function Sidebar({ page, setPage, onLogout, role, store = {} }) {
     ['pedidos', 'Pedidos', ShoppingBag],
     ...(store.localServiceEnabled ? [['atendimento-local', 'Atendimento local', ReceiptText]] : []),
     ...(store.localServiceEnabled && store.waiterAppEnabled ? [['garcons', 'Garcons', Users]] : []),
+    ...(store.localServiceEnabled && store.tablePaymentsEnabled ? [['caixa-local', 'Caixa local', CreditCard]] : []),
     ['entregas', 'Entregas', Truck],
     ['relatorios', 'Relatorios', BarChart3],
     ['cupons', 'Cupons', Tag],
@@ -1024,6 +1025,7 @@ function App() {
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
             {page === 'atendimento-local' && storeData.localServiceEnabled && <LocalService store={storeData} saveStore={saveStore} products={products} orders={orders} addOrder={addOrder} closeLocalTable={closeLocalTable} />}
             {page === 'garcons' && storeData.localServiceEnabled && storeData.waiterAppEnabled && <WaitersPage store={storeData} saveStore={saveStore} />}
+            {page === 'caixa-local' && storeData.localServiceEnabled && storeData.tablePaymentsEnabled && <LocalCash orders={orders} />}
             {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
@@ -1914,6 +1916,102 @@ function printTableAccount(table, orders, settlement, mode, targetWindow = null)
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+}
+
+function LocalCash({ orders }) {
+  const [dateFilter, setDateFilter] = React.useState(todayInputValue());
+  const [tableFilter, setTableFilter] = React.useState('Todas');
+  const [waiterFilter, setWaiterFilter] = React.useState('Todos');
+  const [selectedClosing, setSelectedClosing] = React.useState(null);
+  const closings = Object.values(orders.reduce((grouped, order) => {
+    if (!order.settled || !order.settlementId || !order.settlement) return grouped;
+    if (!grouped[order.settlementId]) {
+      grouped[order.settlementId] = {
+        id: order.settlementId,
+        tableId: order.tableId,
+        tableName: order.tableName || order.customer || 'Mesa',
+        settledAt: order.settledAt || order.settlement.receivedAt,
+        settlement: order.settlement,
+        orders: [],
+        waiters: new Set()
+      };
+    }
+    grouped[order.settlementId].orders.push(order);
+    if (order.waiter) grouped[order.settlementId].waiters.add(order.waiter);
+    return grouped;
+  }, {})).map((closing) => ({ ...closing, waiters: [...closing.waiters] }));
+  const tables = [...new Set(closings.map((closing) => closing.tableName))].sort();
+  const waiters = [...new Set(closings.flatMap((closing) => closing.waiters))].sort();
+  const filtered = closings
+    .filter((closing) => !dateFilter || todayInputValue(new Date(closing.settledAt)) === dateFilter)
+    .filter((closing) => tableFilter === 'Todas' || closing.tableName === tableFilter)
+    .filter((closing) => waiterFilter === 'Todos' || closing.waiters.includes(waiterFilter))
+    .sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt));
+  const totalReceived = filtered.reduce((sum, closing) => sum + Number(closing.settlement.total || 0), 0);
+  const serviceTotal = filtered.reduce((sum, closing) => sum + Number(closing.settlement.serviceFee || 0), 0);
+  const discountTotal = filtered.reduce((sum, closing) => sum + Number(closing.settlement.discount || 0), 0);
+  const payments = filtered.reduce((summary, closing) => {
+    (closing.settlement.payments || [{ method: closing.settlement.payment || 'Nao informado', value: closing.settlement.total }]).forEach((payment) => {
+      summary[payment.method] = Number(summary[payment.method] || 0) + Number(payment.value || 0);
+    });
+    return summary;
+  }, {});
+
+  return (
+    <>
+      <PageHeader title="Caixa local" subtitle="Confira mesas recebidas, pagamentos e fechamento do salao" />
+      <section className="metric-grid local-cash-metrics">
+        <Metric label="Mesas fechadas" value={filtered.length} icon={ReceiptText} />
+        <Metric label="Total recebido" value={BRL.format(totalReceived)} icon={CreditCard} />
+        <Metric label="Taxa de servico" value={BRL.format(serviceTotal)} icon={Users} />
+        <Metric label="Descontos" value={BRL.format(discountTotal)} icon={Tag} />
+      </section>
+      <section className="local-cash-filters">
+        <label>Data<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
+        <label>Mesa<select value={tableFilter} onChange={(event) => setTableFilter(event.target.value)}><option>Todas</option>{tables.map((table) => <option key={table}>{table}</option>)}</select></label>
+        <label>Garcom<select value={waiterFilter} onChange={(event) => setWaiterFilter(event.target.value)}><option>Todos</option>{waiters.map((waiter) => <option key={waiter}>{waiter}</option>)}</select></label>
+      </section>
+      <section className="local-payment-summary">
+        <strong>Recebimentos por forma de pagamento</strong>
+        <div>{Object.entries(payments).map(([method, value]) => <span key={method}><small>{method}</small><b>{BRL.format(value)}</b></span>)}{!Object.keys(payments).length && <p className="empty">Nenhum recebimento encontrado.</p>}</div>
+      </section>
+      <section className="local-closing-list">
+        {filtered.map((closing) => (
+          <article key={closing.id}>
+            <button type="button" onClick={() => setSelectedClosing(closing)}>
+              <span><strong>{closing.tableName}</strong><small>{new Date(closing.settledAt).toLocaleString('pt-BR')} · {closing.waiters.join(', ') || 'Sem garcom'}</small></span>
+              <span><small>{closing.settlement.payment}</small><strong>{BRL.format(Number(closing.settlement.total || 0))}</strong></span>
+              <ChevronRight size={18} />
+            </button>
+            <button className="ghost-button" type="button" onClick={() => printTableAccount({ name: closing.tableName }, closing.orders, closing.settlement, 'receipt')}><Printer size={16} /> Reimprimir</button>
+          </article>
+        ))}
+        {!filtered.length && <article className="placeholder-panel"><strong>Nenhuma mesa fechada</strong><p>Ajuste os filtros ou aguarde novos recebimentos.</p></article>}
+      </section>
+      {selectedClosing && <LocalClosingModal closing={selectedClosing} onClose={() => setSelectedClosing(null)} />}
+    </>
+  );
+}
+
+function LocalClosingModal({ closing, onClose }) {
+  return (
+    <div className="overlay">
+      <section className="modal local-closing-modal">
+        <div className="modal-head"><div><h2>{closing.tableName}</h2><small>Fechada em {new Date(closing.settledAt).toLocaleString('pt-BR')}</small></div><button type="button" onClick={onClose}><X size={20} /></button></div>
+        <div className="table-account-items">
+          {closing.orders.flatMap((order) => order.items.map((item, index) => <div key={`${order.id}-${index}`}><span>{item.qty}x {item.name}<small>{order.waiter ? `Garcom: ${order.waiter}` : ''}</small></span><strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong></div>))}
+        </div>
+        <div className="table-account-total">
+          <span>Consumo <strong>{BRL.format(Number(closing.settlement.subtotal || 0))}</strong></span>
+          <span>Servico <strong>{BRL.format(Number(closing.settlement.serviceFee || 0))}</strong></span>
+          <span>Desconto <strong>- {BRL.format(Number(closing.settlement.discount || 0))}</strong></span>
+          <b>Total recebido <strong>{BRL.format(Number(closing.settlement.total || 0))}</strong></b>
+        </div>
+        <div className="local-closing-payments">{(closing.settlement.payments || []).map((payment) => <span key={payment.method}><small>{payment.method}</small><strong>{BRL.format(Number(payment.value || 0))}</strong></span>)}</div>
+        <div className="modal-actions"><button className="ghost-button" type="button" onClick={() => printTableAccount({ name: closing.tableName }, closing.orders, closing.settlement, 'receipt')}><Printer size={17} /> Reimprimir comprovante</button><button className="orange-button" type="button" onClick={onClose}>Fechar</button></div>
+      </section>
+    </div>
+  );
 }
 
 function Products({ store, setStore, products, createProduct, updateProduct, deleteProduct, importProducts }) {
