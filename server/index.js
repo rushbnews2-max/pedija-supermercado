@@ -53,6 +53,23 @@ app.post('/api/login', (req, res) => {
   res.json({ token, role: 'master' });
 });
 
+app.post('/api/waiter/login', async (req, res) => {
+  const db = withPlatformDefaults(await ensurePlatformDefaults());
+  const slug = slugify(req.body?.catalogSlug || '');
+  const establishment = db.establishments.find((item) => item.catalogSlug === slug);
+  const waiters = safeArray(establishment?.store?.localWaiters);
+  const waiter = waiters.find((item) => item.active !== false && String(item.pin || '') === String(req.body?.pin || ''));
+
+  if (!establishment?.localServiceEnabled || !establishment?.waiterAppEnabled || !waiter) {
+    res.status(401).json({ message: 'PIN invalido ou acesso do garcom desativado' });
+    return;
+  }
+
+  const token = crypto.randomUUID();
+  tokens.set(token, { role: 'waiter', establishmentId: establishment.id, waiterId: waiter.id, waiterName: waiter.name });
+  res.json({ token, role: 'waiter', waiter: { id: waiter.id, name: waiter.name } });
+});
+
 app.post('/api/logout', requireAdmin, (req, res) => {
   const token = getToken(req);
   tokens.delete(token);
@@ -119,6 +136,8 @@ app.use('/api/orders', (req, res, next) => {
   if (req.method === 'POST') return next();
   return requireAdmin(req, res, next);
 });
+app.use('/api/local-service', requireAdmin);
+app.use('/api/waiter', (req, res, next) => req.path === '/login' ? next() : requireWaiter(req, res, next));
 
 app.get('/api/bootstrap', async (req, res) => {
   const db = await ensurePlatformDefaults();
@@ -144,6 +163,87 @@ app.get('/api/bootstrap', async (req, res) => {
     orders: [],
     coupons: []
   });
+});
+
+app.get('/api/waiter/bootstrap', async (req, res) => {
+  const session = getSession(req);
+  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), session);
+  if (!scoped.store.localServiceEnabled || !scoped.store.waiterAppEnabled) {
+    res.status(403).json({ message: 'Acesso do garcom desativado pelo Painel Master.' });
+    return;
+  }
+  res.json({
+    role: 'waiter',
+    waiter: { id: session.waiterId, name: session.waiterName },
+    store: scoped.store,
+    products: scoped.products.filter((product) => product.active !== false),
+    orders: scoped.orders.filter((order) => order.serviceType === 'local' && order.settled !== true)
+  });
+});
+
+app.post('/api/waiter/orders', async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => {
+    if (!establishment.localServiceEnabled || !establishment.waiterAppEnabled) {
+      const error = new Error('Acesso do garcom desativado pelo Painel Master.');
+      error.status = 403;
+      throw error;
+    }
+    const nextId = Math.max(...safeArray(establishment.orders).map((order) => Number(order.id || 0)), 0) + 1;
+    saved = {
+      ...req.body,
+      id: nextId,
+      status: 'Pendente',
+      serviceType: 'local',
+      deliveryMethod: 'Consumo no local',
+      waiter: session.waiterName,
+      waiterId: session.waiterId,
+      createdAt: new Date().toLocaleString('pt-BR'),
+      createdAtIso: new Date().toISOString()
+    };
+    return {
+      ...establishment,
+      store: {
+        ...establishment.store,
+        localTables: safeArray(establishment.store?.localTables).map((table) => table.id === saved.tableId ? { ...table, status: 'Ocupada' } : table)
+      },
+      orders: [saved, ...safeArray(establishment.orders)]
+    };
+  }));
+  res.status(201).json(saved);
+});
+
+app.post('/api/local-service/close-table', async (req, res) => {
+  const session = getSession(req);
+  if (session.role !== 'store') {
+    res.status(403).json({ message: 'Somente o estabelecimento pode receber e fechar mesas.' });
+    return;
+  }
+
+  const tableId = String(req.body?.tableId || '');
+  let result;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => {
+    if (!establishment.tablePaymentsEnabled) {
+      const error = new Error('Fechamento de mesa desativado pelo Painel Master.');
+      error.status = 403;
+      throw error;
+    }
+    const settlementId = crypto.randomUUID();
+    const settledAt = new Date().toISOString();
+    const orders = safeArray(establishment.orders).map((order) => (
+      order.serviceType === 'local' && order.tableId === tableId && order.settled !== true && order.status !== 'Cancelado'
+        ? { ...order, status: 'Entregue', settled: true, settlementId, settledAt, settlement: req.body }
+        : order
+    ));
+    const store = {
+      ...establishment.store,
+      localTables: safeArray(establishment.store?.localTables).map((table) => table.id === tableId ? { ...table, status: 'Livre' } : table)
+    };
+    result = { store: { ...establishmentToStore(establishment), ...store }, orders };
+    return { ...establishment, store, orders };
+  }));
+  res.json(result);
 });
 
 app.post('/api/migrate-local', async (req, res) => {
@@ -258,7 +358,9 @@ app.put('/api/store', async (req, res) => {
           ...establishmentToStore(establishment),
           ...establishment.store,
           ...req.body,
-          localServiceEnabled: Boolean(establishment.localServiceEnabled)
+          localServiceEnabled: Boolean(establishment.localServiceEnabled),
+          waiterAppEnabled: Boolean(establishment.waiterAppEnabled),
+          tablePaymentsEnabled: Boolean(establishment.tablePaymentsEnabled)
         };
         return {
           ...establishment,
@@ -502,6 +604,15 @@ function requireMaster(req, res, next) {
   next();
 }
 
+function requireWaiter(req, res, next) {
+  const session = getSession(req);
+  if (session.role !== 'waiter') {
+    res.status(403).json({ message: 'Acesso de garcom necessario' });
+    return;
+  }
+  next();
+}
+
 function getToken(req) {
   const header = req.get('authorization') || '';
   return header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -563,7 +674,9 @@ function normalizeEstablishment(value) {
   const store = {
     ...establishmentToStore(value),
     ...(value.store || {}),
-    localServiceEnabled: Boolean(value.localServiceEnabled)
+    localServiceEnabled: Boolean(value.localServiceEnabled),
+    waiterAppEnabled: Boolean(value.waiterAppEnabled),
+    tablePaymentsEnabled: Boolean(value.tablePaymentsEnabled)
   };
 
   return {
@@ -577,6 +690,8 @@ function normalizeEstablishment(value) {
     adminUser: value.adminUser || 'admin',
     adminPassword: value.adminPassword || generateAccessPassword(),
     localServiceEnabled: Boolean(value.localServiceEnabled),
+    waiterAppEnabled: Boolean(value.waiterAppEnabled),
+    tablePaymentsEnabled: Boolean(value.tablePaymentsEnabled),
     store,
     products: Array.isArray(value.products) ? value.products.filter((product) => product && typeof product === 'object').map((product) => ({
       ...product,
@@ -652,6 +767,8 @@ function establishmentToStore(establishment) {
     catalogSlug: slugify(establishment?.catalogSlug || establishment?.name || 'catalogo'),
     segment: establishment?.segment || 'supermercado',
     localServiceEnabled: Boolean(establishment?.localServiceEnabled),
+    waiterAppEnabled: Boolean(establishment?.waiterAppEnabled),
+    tablePaymentsEnabled: Boolean(establishment?.tablePaymentsEnabled),
     bannerText: establishment?.name || 'Novo estabelecimento',
     bannerUrl: '',
     logoUrl: '',
@@ -664,7 +781,8 @@ function establishmentToStore(establishment) {
     categoryOrder: [],
     pizzaFlavors: [],
     pizzaBorders: [],
-    localTables: []
+    localTables: [],
+    localWaiters: []
   };
 }
 
@@ -789,7 +907,7 @@ function safeArray(value) {
 }
 
 function getStoreBySession(db, session) {
-  if (session.role !== 'store') {
+  if (!['store', 'waiter'].includes(session.role)) {
     return {
       store: db.store,
       products: db.products || [],
@@ -837,7 +955,7 @@ function updateScopedProducts(db, session, updater) {
 }
 
 function updateScopedOrders(db, session, updater) {
-  if (session.role === 'store') {
+  if (['store', 'waiter'].includes(session.role)) {
     return updateStoreEstablishment(db, session.establishmentId, (establishment) => ({
       ...establishment,
       orders: updater(establishment.orders || [])

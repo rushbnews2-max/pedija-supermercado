@@ -83,6 +83,20 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+async function waiterApi(path, options = {}) {
+  const token = localStorage.getItem('pedija-waiter-token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+    ...options
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `Erro ${response.status}`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
 const initialProducts = [
   {
     id: 'p1',
@@ -372,7 +386,7 @@ async function migrateLocalData() {
   return data;
 }
 
-function Sidebar({ page, setPage, onLogout, role, localServiceEnabled = false }) {
+function Sidebar({ page, setPage, onLogout, role, store = {} }) {
   const masterLinks = [
     ['master', 'Painel Master', Shield]
   ];
@@ -381,7 +395,8 @@ function Sidebar({ page, setPage, onLogout, role, localServiceEnabled = false })
     ['estabelecimentos', 'Estabelecimentos', Store],
     ['produtos', 'Produtos', Box],
     ['pedidos', 'Pedidos', ShoppingBag],
-    ...(localServiceEnabled ? [['atendimento-local', 'Atendimento local', ReceiptText]] : []),
+    ...(store.localServiceEnabled ? [['atendimento-local', 'Atendimento local', ReceiptText]] : []),
+    ...(store.localServiceEnabled && store.waiterAppEnabled ? [['garcons', 'Garcons', Users]] : []),
     ['entregas', 'Entregas', Truck],
     ['relatorios', 'Relatorios', BarChart3],
     ['cupons', 'Cupons', Tag],
@@ -659,6 +674,7 @@ function MarketingSite() {
 function App() {
   const routeSlug = getRouteSlug();
   const adminSlug = getAdminSlug();
+  const waiterSlug = getWaiterSlug();
   const [page, setPage] = React.useState(() => {
     if (window.location.pathname === '/') return 'home';
     if (window.location.pathname.startsWith('/catalogo-exemplo')) return 'demo-catalog';
@@ -687,7 +703,8 @@ function App() {
   const isCatalog = page === 'catalogo';
   const isTracking = page === 'pedido';
   const isPrintPage = page === 'print';
-  const isPublicPage = isLanding || isDemoCatalog || isCatalog || isTracking || isPrintPage;
+  const isWaiterPage = Boolean(waiterSlug);
+  const isPublicPage = isLanding || isDemoCatalog || isCatalog || isTracking || isPrintPage || isWaiterPage;
 
   React.useEffect(() => {
     pageRef.current = page;
@@ -934,6 +951,13 @@ function App() {
     setSelectedOrder((current) => current?.id === id ? null : current);
   };
 
+  const closeLocalTable = async (payload) => {
+    const saved = await api('/api/local-service/close-table', { method: 'POST', body: JSON.stringify(payload) });
+    setStoreData(saved.store);
+    setOrders(saved.orders);
+    return saved;
+  };
+
   if (isLanding) {
     return <MarketingSite />;
   }
@@ -984,7 +1008,7 @@ function App() {
 
   return (
     <div className="shell">
-      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} localServiceEnabled={Boolean(storeData.localServiceEnabled)} />
+      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} store={storeData} />
       <main className="content">
         {role === 'master' ? (
           <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />
@@ -994,7 +1018,8 @@ function App() {
             {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
             {page === 'produtos' && <Products store={storeData} setStore={saveStore} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
-            {page === 'atendimento-local' && storeData.localServiceEnabled && <LocalService store={storeData} saveStore={saveStore} products={products} orders={orders} addOrder={addOrder} />}
+            {page === 'atendimento-local' && storeData.localServiceEnabled && <LocalService store={storeData} saveStore={saveStore} products={products} orders={orders} addOrder={addOrder} closeLocalTable={closeLocalTable} />}
+            {page === 'garcons' && storeData.localServiceEnabled && storeData.waiterAppEnabled && <WaitersPage store={storeData} saveStore={saveStore} />}
             {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
@@ -1146,6 +1171,7 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
                 <span><Users size={15} /> {establishment.adminUser || 'Sem usuario'}</span>
                 <span><Shield size={15} /> Senha: {establishment.adminPassword || 'Nao definida'}</span>
                 <span><ReceiptText size={15} /> Atendimento local: {establishment.localServiceEnabled ? 'Ativado' : 'Desativado'}</span>
+                <span><Users size={15} /> App garcom: {establishment.waiterAppEnabled ? 'Ativado' : 'Desativado'}</span>
               </div>
             </div>
             <div className="client-actions">
@@ -1239,6 +1265,14 @@ function EstablishmentModal({ establishment, onSave, onClose }) {
         <label className="feature-toggle">
           <input type="checkbox" checked={Boolean(draft.localServiceEnabled)} onChange={(event) => setField('localServiceEnabled', event.target.checked)} />
           <span><strong>Atendimento no local</strong><small>Libera mesas, comandas e pedidos feitos pelo garcom.</small></span>
+        </label>
+        <label className="feature-toggle">
+          <input type="checkbox" disabled={!draft.localServiceEnabled} checked={Boolean(draft.waiterAppEnabled)} onChange={(event) => setField('waiterAppEnabled', event.target.checked)} />
+          <span><strong>App do garcom</strong><small>Libera acesso exclusivo pelo celular com PIN individual.</small></span>
+        </label>
+        <label className="feature-toggle">
+          <input type="checkbox" disabled={!draft.localServiceEnabled} checked={Boolean(draft.tablePaymentsEnabled)} onChange={(event) => setField('tablePaymentsEnabled', event.target.checked)} />
+          <span><strong>Fechamento e recebimento da mesa</strong><small>Libera desconto, taxa de servico e registro do pagamento.</small></span>
         </label>
         {draft.catalogSlug && (
           <div className="access-preview">
@@ -1430,19 +1464,118 @@ function StoreModal({ store, onSave, onClose }) {
   );
 }
 
-function LocalService({ store, saveStore, products, orders, addOrder }) {
+function WaiterPortal({ slug }) {
+  const [pin, setPin] = React.useState('');
+  const [data, setData] = React.useState(null);
+  const [error, setError] = React.useState('');
+  const [selectedTable, setSelectedTable] = React.useState(null);
+  const [cart, setCart] = React.useState({});
+  const [customizingProduct, setCustomizingProduct] = React.useState(null);
+  const load = React.useCallback(() => waiterApi('/api/waiter/bootstrap').then(setData).catch(() => { localStorage.removeItem('pedija-waiter-token'); setData(null); }), []);
+  React.useEffect(() => { if (localStorage.getItem('pedija-waiter-token')) load(); }, [load]);
+  const login = async (event) => {
+    event.preventDefault();
+    setError('');
+    try {
+      const result = await waiterApi('/api/waiter/login', { method: 'POST', body: JSON.stringify({ catalogSlug: slug, pin }) });
+      localStorage.setItem('pedija-waiter-token', result.token);
+      await load();
+    } catch (loginError) {
+      setError(loginError.message);
+    }
+  };
+  if (!data) {
+    return <main className="login-page"><form className="login-card" onSubmit={login}><div className="brand login-brand"><strong><span>Pedi</span>Jah</strong><small>App do garcom</small></div><h1>Entrar no atendimento</h1><p>Use seu PIN individual.</p><label>PIN<input type="password" inputMode="numeric" value={pin} onChange={(event) => setPin(event.target.value)} required autoFocus /></label>{error && <span className="login-error">{error}</span>}<button className="orange-button" type="submit"><Shield size={18} /> Entrar</button></form></main>;
+  }
+  const tables = Array.isArray(data.store.localTables) ? data.store.localTables : [];
+  const products = data.products || [];
+  const cartItems = Object.entries(cart).map(([key, entry]) => {
+    const product = products.find((item) => item.id === entry.productId);
+    return product ? { cartKey: key, productId: product.id, code: product.code || '', name: product.name, price: Number(product.price || 0), qty: entry.qty, optionGroups: entry.optionGroups || [], optionsPrice: Number(entry.optionsPrice || 0), notes: entry.notes || '' } : null;
+  }).filter(Boolean);
+  const addItem = (product, options = {}) => {
+    const key = cartKey(product.id, options);
+    setCart((current) => ({ ...current, [key]: { productId: product.id, qty: Number(current[key]?.qty || 0) + 1, optionGroups: options.optionGroups || [], optionsPrice: Number(options.optionsPrice || 0), notes: options.notes || '' } }));
+  };
+  const chooseProduct = (product) => isConfigurableProduct(product) ? setCustomizingProduct(product) : addItem(product);
+  const send = async () => {
+    if (!selectedTable || !cartItems.length) return;
+    await waiterApi('/api/waiter/orders', { method: 'POST', body: JSON.stringify({ tableId: selectedTable.id, tableName: selectedTable.name, customer: selectedTable.name, address: `Consumo no local - ${selectedTable.name}`, payment: 'A combinar no caixa', items: cartItems, total: cartItems.reduce((sum, item) => sum + item.qty * itemUnitPrice(item), 0), notes: 'Pedido realizado pelo garcom' }) });
+    setCart({});
+    setSelectedTable(null);
+    await load();
+  };
+  return (
+    <main className="waiter-app">
+      <header><div><strong>{data.store.name}</strong><small>Garcom: {data.waiter.name}</small></div><button onClick={() => { localStorage.removeItem('pedija-waiter-token'); setData(null); }}><X size={18} /> Sair</button></header>
+      <h1>Escolha uma mesa</h1>
+      <section className="waiter-table-grid">{tables.map((table) => <button className={table.status === 'Ocupada' ? 'occupied' : ''} onClick={() => setSelectedTable(table)} key={table.id}><ReceiptText size={22} /><strong>{table.name}</strong><span>{table.status || 'Livre'}</span></button>)}</section>
+      {selectedTable && <div className="overlay"><section className="modal local-order-panel"><div className="modal-head"><div><h2>{selectedTable.name}</h2><small>Novo pedido</small></div><button onClick={() => setSelectedTable(null)}><X size={20} /></button></div><div className="local-product-list">{products.map((product) => <button onClick={() => chooseProduct(product)} key={product.id}><ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} /></button>)}</div><div className="local-cart">{cartItems.map((item) => <div className="local-cart-item" key={item.cartKey}><span><strong>{item.qty}x {item.name}</strong><small>{formatItemOptions(item)}</small></span><strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong></div>)}{!cartItems.length && <p className="empty">Selecione os produtos.</p>}<button className="orange-button" disabled={!cartItems.length} onClick={send}><ShoppingBag size={18} /> Enviar para preparo</button></div></section></div>}
+      {customizingProduct && <ProductCustomizeModal store={data.store} product={customizingProduct} onClose={() => setCustomizingProduct(null)} onAdd={(options) => { addItem(customizingProduct, options); setCustomizingProduct(null); }} />}
+    </main>
+  );
+}
+
+function WaitersPage({ store, saveStore }) {
+  const waiters = Array.isArray(store.localWaiters) ? store.localWaiters : [];
+  const [status, setStatus] = React.useState('');
+  const addWaiter = async () => {
+    const name = prompt('Nome do garcom:');
+    if (!name?.trim()) return;
+    if (waiters.some((waiter) => normalizeText(waiter.name) === normalizeText(name))) {
+      setStatus('Esse garcom ja esta cadastrado.');
+      return;
+    }
+    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    await saveStore({ ...store, localWaiters: [...waiters, { id: crypto.randomUUID(), name: name.trim(), pin, active: true }] });
+    setStatus(`Garcom cadastrado. PIN: ${pin}`);
+  };
+  const updateWaiter = async (waiter, changes) => {
+    await saveStore({ ...store, localWaiters: waiters.map((item) => item.id === waiter.id ? { ...item, ...changes } : item) });
+  };
+  const removeWaiter = async (waiter) => {
+    if (!confirm(`Excluir o garcom ${waiter.name}?`)) return;
+    await saveStore({ ...store, localWaiters: waiters.filter((item) => item.id !== waiter.id) });
+  };
+  const accessUrl = `${window.location.origin}/garcom/${store.catalogSlug}`;
+  return (
+    <>
+      <PageHeader title="Garcons" subtitle="Gerencie o acesso da equipe pelo celular">
+        <button className="ghost-button" onClick={() => navigator.clipboard.writeText(accessUrl)}><Copy size={17} /> Copiar link do garcom</button>
+        <button className="orange-button" onClick={addWaiter}><Plus size={18} /> Novo garcom</button>
+      </PageHeader>
+      {status && <p className="form-status">{status}</p>}
+      <section className="waiter-admin-list">
+        {waiters.map((waiter) => (
+          <article key={waiter.id}>
+            <div><Users size={21} /><span><strong>{waiter.name}</strong><small>PIN: {waiter.pin || 'Nao definido'}</small></span></div>
+            <div>
+              <label className="auto-print-toggle"><input type="checkbox" checked={waiter.active !== false} onChange={(event) => updateWaiter(waiter, { active: event.target.checked })} /> Ativo</label>
+              <button className="ghost-button" onClick={() => updateWaiter(waiter, { pin: String(Math.floor(1000 + Math.random() * 9000)) })}><Settings size={16} /> Novo PIN</button>
+              <button className="ghost-button danger-text" onClick={() => removeWaiter(waiter)}><Trash2 size={16} /> Excluir</button>
+            </div>
+          </article>
+        ))}
+        {!waiters.length && <article className="placeholder-panel"><strong>Nenhum garcom cadastrado</strong><p>Cadastre cada garcom para gerar um PIN individual.</p></article>}
+      </section>
+    </>
+  );
+}
+
+function LocalService({ store, saveStore, products, orders, addOrder, closeLocalTable }) {
   const tables = Array.isArray(store.localTables) ? store.localTables : [];
   const waiters = Array.isArray(store.localWaiters) ? store.localWaiters : [];
   const [selectedTable, setSelectedTable] = React.useState(null);
   const [selectedWaiter, setSelectedWaiter] = React.useState('');
   const [tableFilter, setTableFilter] = React.useState('Todas');
+  const [closingTable, setClosingTable] = React.useState(null);
   const [cart, setCart] = React.useState({});
   const [customizingProduct, setCustomizingProduct] = React.useState(null);
   const [status, setStatus] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const activeProducts = products.filter((product) => product.active !== false);
   const visibleTables = tables.filter((table) => tableFilter === 'Todas' || (table.status || 'Livre') === tableFilter);
-  const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && !['Entregue', 'Cancelado'].includes(order.status)) : [];
+  const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && order.settled !== true && order.status !== 'Cancelado') : [];
   const cartItems = Object.entries(cart).map(([key, entry]) => {
     const product = products.find((item) => item.id === entry.productId);
     return product ? {
@@ -1471,21 +1604,6 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
     }
     await persistTables([...tables, { id: crypto.randomUUID(), name: name.trim(), status: 'Livre' }]);
     setStatus('Mesa cadastrada.');
-  };
-  const addWaiter = async () => {
-    const name = prompt('Nome do garcom:');
-    if (!name?.trim()) return;
-    if (waiters.some((waiter) => normalizeText(waiter.name) === normalizeText(name))) {
-      setStatus('Esse garcom ja esta cadastrado.');
-      return;
-    }
-    await saveStore({ ...store, localWaiters: [...waiters, { id: crypto.randomUUID(), name: name.trim(), active: true }] });
-    setStatus('Garcom cadastrado.');
-  };
-  const removeWaiter = async (waiter) => {
-    if (!confirm(`Excluir o garcom ${waiter.name}?`)) return;
-    await saveStore({ ...store, localWaiters: waiters.filter((item) => item.id !== waiter.id) });
-    if (selectedWaiter === waiter.name) setSelectedWaiter('');
   };
   const updateTableStatus = async (table, nextStatus) => {
     await persistTables(tables.map((item) => item.id === table.id ? { ...item, status: nextStatus } : item));
@@ -1561,18 +1679,26 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
       setSending(false);
     }
   };
-  const closeTable = async () => {
+  const closeTable = () => {
     if (!selectedTable) return;
-    if (tableOrders.length && !confirm(`Existem ${tableOrders.length} pedidos ativos nesta mesa. Fechar mesmo assim?`)) return;
-    await updateTableStatus(selectedTable, 'Livre');
-    setCart({});
-    setStatus(`${selectedTable.name} liberada.`);
+    if (!store.tablePaymentsEnabled) {
+      setStatus('O fechamento e recebimento desta mesa esta desativado pelo Painel Master.');
+      return;
+    }
+    if (!tableOrders.length) {
+      setStatus('Esta mesa nao possui consumo pendente.');
+      return;
+    }
+    setClosingTable(selectedTable);
   };
+
+  if (isWaiterPage) {
+    return <WaiterPortal slug={waiterSlug} />;
+  }
 
   return (
     <>
       <PageHeader title="Atendimento local" subtitle="Abra mesas e envie pedidos direto para o preparo">
-        <button className="ghost-button" onClick={addWaiter}><Users size={18} /> Novo garcom</button>
         <button className="orange-button" onClick={addTable}><Plus size={18} /> Nova mesa</button>
       </PageHeader>
       {status && <p className="form-status">{status}</p>}
@@ -1580,18 +1706,13 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
         <div className="tabs">
           {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || (table.status || 'Livre') === name).length})</button>)}
         </div>
-        <div className="waiter-list">
-          <strong>Garcons</strong>
-          {waiters.map((waiter) => <span key={waiter.id}>{waiter.name}<button type="button" onClick={() => removeWaiter(waiter)} aria-label={`Excluir ${waiter.name}`}><X size={13} /></button></span>)}
-          {!waiters.length && <small>Nenhum garcom cadastrado</small>}
-        </div>
       </div>
       {!tables.length ? (
         <article className="placeholder-panel"><strong>Nenhuma mesa cadastrada</strong><p>Cadastre as mesas para iniciar o atendimento no local.</p></article>
       ) : (
         <section className="table-grid">
             {visibleTables.map((table) => {
-              const activeCount = orders.filter((order) => order.serviceType === 'local' && order.tableId === table.id && !['Entregue', 'Cancelado'].includes(order.status)).length;
+              const activeCount = orders.filter((order) => order.serviceType === 'local' && order.tableId === table.id && order.settled !== true && order.status !== 'Cancelado').length;
               return (
                 <article className={`table-card ${table.status === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
                   <button type="button" onClick={() => { setSelectedTable(table); setSelectedWaiter(''); setCart({}); setStatus(''); }}>
@@ -1612,7 +1733,7 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
             </div>
             <div className="local-order-actions">
               <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>
-              {selectedTable.status === 'Ocupada' && <button className="ghost-button" onClick={closeTable}><Check size={16} /> Fechar mesa</button>}
+              {selectedTable.status === 'Ocupada' && store.tablePaymentsEnabled && <button className="ghost-button" onClick={closeTable}><CreditCard size={16} /> Receber e fechar</button>}
             </div>
             <div className="local-product-list">
               {activeProducts.map((product) => (
@@ -1637,7 +1758,48 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
         </div>
       )}
       {customizingProduct && <ProductCustomizeModal store={store} product={customizingProduct} onClose={() => setCustomizingProduct(null)} onAdd={(options) => { addConfiguredItem(customizingProduct, options); setCustomizingProduct(null); }} />}
+      {closingTable && <TableCheckoutModal table={closingTable} orders={tableOrders} onClose={() => setClosingTable(null)} onConfirm={async (settlement) => { await closeLocalTable({ tableId: closingTable.id, ...settlement }); setClosingTable(null); setSelectedTable(null); setCart({}); setStatus(`${closingTable.name} recebida e liberada.`); }} />}
     </>
+  );
+}
+
+function TableCheckoutModal({ table, orders, onClose, onConfirm }) {
+  const subtotal = orders.reduce((sum, order) => sum + orderTotal(order), 0);
+  const [servicePercent, setServicePercent] = React.useState(10);
+  const [discount, setDiscount] = React.useState(0);
+  const [payment, setPayment] = React.useState('Dinheiro');
+  const [saving, setSaving] = React.useState(false);
+  const serviceFee = subtotal * Math.max(0, Number(servicePercent || 0)) / 100;
+  const total = Math.max(0, subtotal + serviceFee - Math.max(0, Number(discount || 0)));
+  const confirmPayment = async () => {
+    setSaving(true);
+    try {
+      await onConfirm({ subtotal, servicePercent: Number(servicePercent || 0), serviceFee, discount: Number(discount || 0), total, payment, receivedAt: new Date().toISOString() });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="overlay top-overlay">
+      <section className="modal table-checkout-modal">
+        <div className="modal-head"><div><h2>Fechar {table.name}</h2><small>{orders.length} pedidos na conta</small></div><button type="button" onClick={onClose}><X size={20} /></button></div>
+        <div className="table-account-items">
+          {orders.flatMap((order) => order.items.map((item, index) => <div key={`${order.id}-${index}`}><span>{item.qty}x {item.name}</span><strong>{BRL.format(item.qty * itemUnitPrice(item))}</strong></div>))}
+        </div>
+        <div className="form-grid">
+          <label>Taxa de servico (%)<input type="number" min="0" step="0.01" value={servicePercent} onChange={(event) => setServicePercent(event.target.value)} /></label>
+          <label>Desconto (R$)<input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} /></label>
+        </div>
+        <label>Forma de pagamento<select value={payment} onChange={(event) => setPayment(event.target.value)}><option>Dinheiro</option><option>PIX</option><option>Cartao de debito</option><option>Cartao de credito</option><option>Pagamento dividido</option></select></label>
+        <div className="table-account-total">
+          <span>Consumo <strong>{BRL.format(subtotal)}</strong></span>
+          <span>Servico <strong>{BRL.format(serviceFee)}</strong></span>
+          <span>Desconto <strong>- {BRL.format(Number(discount || 0))}</strong></span>
+          <b>Total a receber <strong>{BRL.format(total)}</strong></b>
+        </div>
+        <div className="modal-actions"><button className="ghost-button" type="button" onClick={onClose}>Cancelar</button><button className="orange-button" type="button" disabled={saving} onClick={confirmPayment}><CreditCard size={18} /> {saving ? 'Recebendo...' : 'Receber e liberar mesa'}</button></div>
+      </section>
+    </div>
   );
 }
 
@@ -4030,7 +4192,9 @@ function createEstablishmentDraft() {
     catalogSlug: '',
     adminUser: 'admin',
     adminPassword: generateAccessPassword(),
-    localServiceEnabled: false
+    localServiceEnabled: false,
+    waiterAppEnabled: false,
+    tablePaymentsEnabled: false
   };
 }
 
@@ -4591,6 +4755,12 @@ function formatHistoryDate(value) {
   } catch {
     return 'Pedido recente';
   }
+}
+
+function getWaiterSlug() {
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'garcom') return parts[1] || '';
+  return '';
 }
 
 function todayInputValue(date = new Date()) {
