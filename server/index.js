@@ -257,7 +257,8 @@ app.put('/api/store', async (req, res) => {
         saved = {
           ...establishmentToStore(establishment),
           ...establishment.store,
-          ...req.body
+          ...req.body,
+          localServiceEnabled: Boolean(establishment.localServiceEnabled)
         };
         return {
           ...establishment,
@@ -561,7 +562,8 @@ function buildDefaultEstablishments(store) {
 function normalizeEstablishment(value) {
   const store = {
     ...establishmentToStore(value),
-    ...(value.store || {})
+    ...(value.store || {}),
+    localServiceEnabled: Boolean(value.localServiceEnabled)
   };
 
   return {
@@ -574,6 +576,7 @@ function normalizeEstablishment(value) {
     catalogSlug: slugify(value.catalogSlug || value.name || 'catalogo'),
     adminUser: value.adminUser || 'admin',
     adminPassword: value.adminPassword || generateAccessPassword(),
+    localServiceEnabled: Boolean(value.localServiceEnabled),
     store,
     products: Array.isArray(value.products) ? value.products.filter((product) => product && typeof product === 'object').map((product) => ({
       ...product,
@@ -648,6 +651,7 @@ function establishmentToStore(establishment) {
     address: '',
     catalogSlug: slugify(establishment?.catalogSlug || establishment?.name || 'catalogo'),
     segment: establishment?.segment || 'supermercado',
+    localServiceEnabled: Boolean(establishment?.localServiceEnabled),
     bannerText: establishment?.name || 'Novo estabelecimento',
     bannerUrl: '',
     logoUrl: '',
@@ -659,7 +663,8 @@ function establishmentToStore(establishment) {
     deliveryZones: [],
     categoryOrder: [],
     pizzaFlavors: [],
-    pizzaBorders: []
+    pizzaBorders: [],
+    localTables: []
   };
 }
 

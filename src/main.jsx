@@ -372,7 +372,7 @@ async function migrateLocalData() {
   return data;
 }
 
-function Sidebar({ page, setPage, onLogout, role }) {
+function Sidebar({ page, setPage, onLogout, role, localServiceEnabled = false }) {
   const masterLinks = [
     ['master', 'Painel Master', Shield]
   ];
@@ -381,6 +381,7 @@ function Sidebar({ page, setPage, onLogout, role }) {
     ['estabelecimentos', 'Estabelecimentos', Store],
     ['produtos', 'Produtos', Box],
     ['pedidos', 'Pedidos', ShoppingBag],
+    ...(localServiceEnabled ? [['atendimento-local', 'Atendimento local', ReceiptText]] : []),
     ['entregas', 'Entregas', Truck],
     ['relatorios', 'Relatorios', BarChart3],
     ['cupons', 'Cupons', Tag],
@@ -983,7 +984,7 @@ function App() {
 
   return (
     <div className="shell">
-      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} />
+      <Sidebar page={page} setPage={setPage} onLogout={logout} role={role || (adminSlug ? 'store' : 'master')} localServiceEnabled={Boolean(storeData.localServiceEnabled)} />
       <main className="content">
         {role === 'master' ? (
           <MasterPanel establishments={establishments} createEstablishment={createEstablishment} updateEstablishment={updateEstablishment} deleteEstablishment={deleteEstablishment} />
@@ -993,6 +994,7 @@ function App() {
             {page === 'estabelecimentos' && <Stores store={storeData} setStore={saveStore} setPage={setPage} />}
             {page === 'produtos' && <Products store={storeData} setStore={saveStore} products={products} createProduct={createProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} importProducts={importProducts} />}
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
+            {page === 'atendimento-local' && storeData.localServiceEnabled && <LocalService store={storeData} saveStore={saveStore} products={products} orders={orders} addOrder={addOrder} />}
             {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
             {page === 'relatorios' && <Reports orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
@@ -1143,6 +1145,7 @@ function MasterPanel({ establishments, createEstablishment, updateEstablishment,
                 <span><ExternalLink size={15} /> /admin/{establishment.catalogSlug}</span>
                 <span><Users size={15} /> {establishment.adminUser || 'Sem usuario'}</span>
                 <span><Shield size={15} /> Senha: {establishment.adminPassword || 'Nao definida'}</span>
+                <span><ReceiptText size={15} /> Atendimento local: {establishment.localServiceEnabled ? 'Ativado' : 'Desativado'}</span>
               </div>
             </div>
             <div className="client-actions">
@@ -1233,6 +1236,10 @@ function EstablishmentModal({ establishment, onSave, onClose }) {
           <label>Usuario/admin<input value={draft.adminUser} onChange={(event) => setField('adminUser', event.target.value)} /></label>
         </div>
         <label>Senha de acesso do cliente<input value={draft.adminPassword || ''} onChange={(event) => setField('adminPassword', event.target.value)} required /></label>
+        <label className="feature-toggle">
+          <input type="checkbox" checked={Boolean(draft.localServiceEnabled)} onChange={(event) => setField('localServiceEnabled', event.target.checked)} />
+          <span><strong>Atendimento no local</strong><small>Libera mesas, comandas e pedidos feitos pelo garcom.</small></span>
+        </label>
         {draft.catalogSlug && (
           <div className="access-preview">
             <span>Link de acesso</span>
@@ -1420,6 +1427,178 @@ function StoreModal({ store, onSave, onClose }) {
         <button className="orange-button" type="submit" disabled={saving}><Check size={18} /> {saving ? 'Salvando...' : 'Salvar estabelecimento'}</button>
       </form>
     </div>
+  );
+}
+
+function LocalService({ store, saveStore, products, orders, addOrder }) {
+  const tables = Array.isArray(store.localTables) ? store.localTables : [];
+  const [selectedTable, setSelectedTable] = React.useState(null);
+  const [cart, setCart] = React.useState({});
+  const [customizingProduct, setCustomizingProduct] = React.useState(null);
+  const [status, setStatus] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const activeProducts = products.filter((product) => product.active !== false);
+  const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && !['Entregue', 'Cancelado'].includes(order.status)) : [];
+  const cartItems = Object.entries(cart).map(([key, entry]) => {
+    const product = products.find((item) => item.id === entry.productId);
+    return product ? {
+      cartKey: key,
+      productId: product.id,
+      code: product.code || '',
+      name: product.name,
+      price: Number(product.price || 0),
+      qty: entry.qty,
+      optionGroups: entry.optionGroups || [],
+      optionsPrice: Number(entry.optionsPrice || 0),
+      notes: entry.notes || ''
+    } : null;
+  }).filter(Boolean);
+  const cartTotal = cartItems.reduce((sum, item) => sum + item.qty * itemUnitPrice(item), 0);
+
+  const persistTables = async (nextTables) => {
+    await saveStore({ ...store, localTables: nextTables });
+  };
+  const addTable = async () => {
+    const name = prompt('Nome ou numero da mesa:');
+    if (!name?.trim()) return;
+    if (tables.some((table) => normalizeText(table.name) === normalizeText(name))) {
+      setStatus('Ja existe uma mesa com esse nome.');
+      return;
+    }
+    await persistTables([...tables, { id: crypto.randomUUID(), name: name.trim(), status: 'Livre' }]);
+    setStatus('Mesa cadastrada.');
+  };
+  const updateTableStatus = async (table, nextStatus) => {
+    await persistTables(tables.map((item) => item.id === table.id ? { ...item, status: nextStatus } : item));
+    setSelectedTable((current) => current?.id === table.id ? { ...current, status: nextStatus } : current);
+  };
+  const removeTable = async (table) => {
+    if (table.status === 'Ocupada') {
+      setStatus('Feche a comanda antes de excluir esta mesa.');
+      return;
+    }
+    if (!confirm(`Excluir ${table.name}?`)) return;
+    await persistTables(tables.filter((item) => item.id !== table.id));
+    if (selectedTable?.id === table.id) setSelectedTable(null);
+  };
+  const addConfiguredItem = (product, options = {}) => {
+    const key = cartKey(product.id, options);
+    setCart((current) => ({
+      ...current,
+      [key]: {
+        productId: product.id,
+        qty: Number(current[key]?.qty || 0) + 1,
+        optionGroups: options.optionGroups || [],
+        optionsPrice: Number(options.optionsPrice || 0),
+        notes: options.notes || ''
+      }
+    }));
+    setStatus(`${product.name} adicionado na comanda.`);
+  };
+  const addProductToTable = (product) => {
+    if (isConfigurableProduct(product)) {
+      setCustomizingProduct(product);
+      return;
+    }
+    addConfiguredItem(product);
+  };
+  const changeQty = (key, delta) => setCart((current) => {
+    const next = { ...current };
+    const qty = Number(next[key]?.qty || 0) + delta;
+    if (qty <= 0) delete next[key];
+    else next[key] = { ...next[key], qty };
+    return next;
+  });
+  const sendToKitchen = async () => {
+    if (!selectedTable || !cartItems.length) return;
+    setSending(true);
+    setStatus('');
+    try {
+      const orderId = await addOrder({
+        storeSlug: store.catalogSlug,
+        customer: selectedTable.name,
+        phone: '',
+        address: `Consumo no local - ${selectedTable.name}`,
+        payment: 'A combinar no caixa',
+        deliveryMethod: 'Consumo no local',
+        serviceType: 'local',
+        tableId: selectedTable.id,
+        tableName: selectedTable.name,
+        items: cartItems,
+        total: cartTotal,
+        notes: 'Pedido realizado no atendimento local'
+      });
+      await updateTableStatus(selectedTable, 'Ocupada');
+      setCart({});
+      setStatus(`Pedido #${orderId} enviado para preparo.`);
+    } catch (error) {
+      setStatus(error.message || 'Nao consegui enviar o pedido.');
+    } finally {
+      setSending(false);
+    }
+  };
+  const closeTable = async () => {
+    if (!selectedTable) return;
+    if (tableOrders.length && !confirm(`Existem ${tableOrders.length} pedidos ativos nesta mesa. Fechar mesmo assim?`)) return;
+    await updateTableStatus(selectedTable, 'Livre');
+    setCart({});
+    setStatus(`${selectedTable.name} liberada.`);
+  };
+
+  return (
+    <>
+      <PageHeader title="Atendimento local" subtitle="Abra mesas e envie pedidos direto para o preparo">
+        <button className="orange-button" onClick={addTable}><Plus size={18} /> Nova mesa</button>
+      </PageHeader>
+      {status && <p className="form-status">{status}</p>}
+      {!tables.length ? (
+        <article className="placeholder-panel"><strong>Nenhuma mesa cadastrada</strong><p>Cadastre as mesas para iniciar o atendimento no local.</p></article>
+      ) : (
+        <section className="local-service-layout">
+          <div className="table-grid">
+            {tables.map((table) => {
+              const activeCount = orders.filter((order) => order.serviceType === 'local' && order.tableId === table.id && !['Entregue', 'Cancelado'].includes(order.status)).length;
+              return (
+                <article className={`table-card ${table.status === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
+                  <button type="button" onClick={() => { setSelectedTable(table); setCart({}); setStatus(''); }}>
+                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{table.status || 'Livre'}</span>{activeCount > 0 && <small>{activeCount} pedidos ativos</small>}
+                  </button>
+                  <button type="button" className="table-delete" onClick={() => removeTable(table)} aria-label={`Excluir ${table.name}`}><Trash2 size={15} /></button>
+                </article>
+              );
+            })}
+          </div>
+          {selectedTable && (
+            <section className="local-order-panel">
+              <div className="local-order-head">
+                <div><strong>{selectedTable.name}</strong><small>{tableOrders.length} pedidos ativos · {selectedTable.status || 'Livre'}</small></div>
+                {selectedTable.status === 'Ocupada' && <button className="ghost-button" onClick={closeTable}><Check size={16} /> Fechar mesa</button>}
+              </div>
+              <div className="local-product-list">
+                {activeProducts.map((product) => (
+                  <button type="button" onClick={() => addProductToTable(product)} key={product.id}>
+                    <ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} />
+                  </button>
+                ))}
+              </div>
+              <div className="local-cart">
+                <strong>Nova solicitacao</strong>
+                {cartItems.map((item) => (
+                  <div className="local-cart-item" key={item.cartKey}>
+                    <span><strong>{item.name}</strong><small>{formatItemOptions(item)}</small></span>
+                    <div><button type="button" onClick={() => changeQty(item.cartKey, -1)}>-</button><b>{item.qty}</b><button type="button" onClick={() => changeQty(item.cartKey, 1)}>+</button></div>
+                  </div>
+                ))}
+                {!cartItems.length && <p className="empty">Selecione os produtos que o cliente pediu.</p>}
+                <div className="local-cart-total"><span>Total desta solicitacao</span><strong>{BRL.format(cartTotal)}</strong></div>
+                <button className="orange-button" type="button" disabled={!cartItems.length || sending} onClick={sendToKitchen}><ShoppingBag size={18} /> {sending ? 'Enviando...' : 'Enviar para preparo'}</button>
+              </div>
+            </section>
+          )}
+        </section>
+      )}
+      {customizingProduct && <ProductCustomizeModal store={store} product={customizingProduct} onClose={() => setCustomizingProduct(null)} onAdd={(options) => { addConfiguredItem(customizingProduct, options); setCustomizingProduct(null); }} />}
+    </>
   );
 }
 
@@ -3792,7 +3971,8 @@ function createEstablishmentDraft() {
     phone: '',
     catalogSlug: '',
     adminUser: 'admin',
-    adminPassword: generateAccessPassword()
+    adminPassword: generateAccessPassword(),
+    localServiceEnabled: false
   };
 }
 
