@@ -150,6 +150,7 @@ app.use('/api/orders', (req, res, next) => {
   return requireAdmin(req, res, () => requirePermission('orders')(req, res, next));
 });
 app.use('/api/local-service', requireAdmin, requirePermission('local_cash'));
+app.use('/api/cash-register', requireAdmin, requirePermission('local_cash'));
 app.use('/api/team-users', requireAdmin);
 app.use('/api/audit-logs', requireAdmin);
 app.use('/api/waiter', (req, res, next) => req.path === '/login' ? next() : requireWaiter(req, res, next));
@@ -171,6 +172,7 @@ app.get('/api/bootstrap', async (req, res) => {
       coupons: permissions.includes('coupons') ? scoped.coupons : [],
       teamUsers: permissions.includes('team') ? scoped.teamUsers.map(({ password, ...user }) => user) : [],
       auditLogs: permissions.includes('audit') ? scoped.auditLogs : [],
+      cashSessions: permissions.includes('local_cash') ? scoped.cashSessions : [],
       currentUser: session.currentUser || null
     });
     return;
@@ -228,6 +230,82 @@ app.delete('/api/team-users/:id', requirePermission('team'), async (req, res) =>
 app.get('/api/audit-logs', requirePermission('audit'), async (req, res) => {
   const scoped = getStoreBySession(withPlatformDefaults(await readDb()), getSession(req));
   res.json(scoped.auditLogs.slice(0, 300));
+});
+
+app.get('/api/cash-register', async (req, res) => {
+  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), getSession(req));
+  res.json(scoped.cashSessions);
+});
+
+app.post('/api/cash-register/open', async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => {
+    if (safeArray(establishment.cashSessions).some((cash) => cash.status === 'open')) {
+      const error = new Error('Ja existe um caixa aberto.');
+      error.status = 409;
+      throw error;
+    }
+    saved = normalizeCashSession({
+      id: crypto.randomUUID(),
+      status: 'open',
+      openedAt: new Date().toISOString(),
+      openedBy: session.currentUser?.name || 'Administrador',
+      openingAmount: req.body?.openingAmount,
+      notes: req.body?.notes,
+      movements: []
+    });
+    return { ...establishment, cashSessions: [saved, ...safeArray(establishment.cashSessions)] };
+  }));
+  res.status(201).json(saved);
+});
+
+app.post('/api/cash-register/:id/movements', async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+    ...establishment,
+    cashSessions: safeArray(establishment.cashSessions).map((cash) => {
+      if (cash.id !== req.params.id || cash.status !== 'open') return cash;
+      saved = {
+        id: crypto.randomUUID(),
+        type: req.body?.type === 'withdrawal' ? 'withdrawal' : 'supply',
+        amount: Math.max(0, Number(req.body?.amount || 0)),
+        reason: String(req.body?.reason || '').trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: session.currentUser?.name || 'Administrador'
+      };
+      return { ...cash, movements: [saved, ...safeArray(cash.movements)] };
+    })
+  })));
+  if (!saved) return res.status(404).json({ message: 'Caixa aberto nao encontrado.' });
+  res.status(201).json(saved);
+});
+
+app.post('/api/cash-register/:id/close', async (req, res) => {
+  const session = getSession(req);
+  let saved;
+  await updateDb((current) => updateStoreEstablishment(current, session.establishmentId, (establishment) => ({
+    ...establishment,
+    cashSessions: safeArray(establishment.cashSessions).map((cash) => {
+      if (cash.id !== req.params.id || cash.status !== 'open') return cash;
+      const summary = cashSessionSummary(cash, safeArray(establishment.orders));
+      const countedAmount = Math.max(0, Number(req.body?.countedAmount || 0));
+      saved = normalizeCashSession({
+        ...cash,
+        status: 'closed',
+        closedAt: new Date().toISOString(),
+        closedBy: session.currentUser?.name || 'Administrador',
+        countedAmount,
+        difference: countedAmount - summary.expectedCash,
+        closingNotes: req.body?.notes,
+        summary
+      });
+      return saved;
+    })
+  })));
+  if (!saved) return res.status(404).json({ message: 'Caixa aberto nao encontrado.' });
+  res.json(saved);
 });
 
 app.get('/api/waiter/bootstrap', async (req, res) => {
@@ -646,6 +724,11 @@ app.delete('/api/orders/:id', async (req, res) => {
   res.status(204).end();
 });
 
+app.use((error, _req, res, _next) => {
+  console.error(error);
+  res.status(Number(error?.status || 500)).json({ message: error?.message || 'Erro interno do servidor.' });
+});
+
 app.use(express.static(join(__dirname, '..', 'dist')));
 
 app.get(/.*/, (_req, res) => {
@@ -807,9 +890,56 @@ function normalizeEstablishment(value) {
       optionGroups: normalizeProductOptionGroups(product.optionGroups)
     })) : [],
     orders: Array.isArray(value.orders) ? value.orders.filter((order) => order && typeof order === 'object') : [],
-    coupons: Array.isArray(value.coupons) ? value.coupons.filter((coupon) => coupon && typeof coupon === 'object').map((coupon) => normalizeCoupon(coupon)) : []
-    ,teamUsers: safeArray(value.teamUsers).map(normalizeTeamUser),
-    auditLogs: safeArray(value.auditLogs)
+    coupons: Array.isArray(value.coupons) ? value.coupons.filter((coupon) => coupon && typeof coupon === 'object').map((coupon) => normalizeCoupon(coupon)) : [],
+    teamUsers: safeArray(value.teamUsers).map(normalizeTeamUser),
+    auditLogs: safeArray(value.auditLogs),
+    cashSessions: safeArray(value.cashSessions).map(normalizeCashSession)
+  };
+}
+
+function normalizeCashSession(value) {
+  return {
+    id: value.id || crypto.randomUUID(),
+    status: value.status === 'closed' ? 'closed' : 'open',
+    openedAt: value.openedAt || new Date().toISOString(),
+    openedBy: String(value.openedBy || 'Administrador'),
+    openingAmount: Math.max(0, Number(value.openingAmount || 0)),
+    notes: String(value.notes || ''),
+    movements: safeArray(value.movements),
+    closedAt: value.closedAt || '',
+    closedBy: String(value.closedBy || ''),
+    countedAmount: Number(value.countedAmount || 0),
+    difference: Number(value.difference || 0),
+    closingNotes: String(value.closingNotes || ''),
+    summary: value.summary || null
+  };
+}
+
+function cashSessionSummary(cash, orders) {
+  const openedAt = new Date(cash.openedAt).getTime();
+  const closedAt = cash.closedAt ? new Date(cash.closedAt).getTime() : Infinity;
+  const sessionOrders = orders.filter((order) => {
+    const settledAt = new Date(order.settledAt || order.settlement?.receivedAt || 0).getTime();
+    return order.settled && settledAt >= openedAt && settledAt <= closedAt;
+  });
+  const payments = {};
+  sessionOrders.forEach((order) => {
+    const lines = safeArray(order.settlement?.payments).length
+      ? order.settlement.payments
+      : [{ method: order.settlement?.payment || order.payment || 'Nao informado', value: order.settlement?.total || 0 }];
+    lines.forEach((payment) => { payments[payment.method] = Number(payments[payment.method] || 0) + Number(payment.value || 0); });
+  });
+  const supplies = safeArray(cash.movements).filter((item) => item.type === 'supply').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const withdrawals = safeArray(cash.movements).filter((item) => item.type === 'withdrawal').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const cashSales = Object.entries(payments).filter(([method]) => String(method).toLowerCase().includes('dinheiro')).reduce((sum, [, value]) => sum + value, 0);
+  return {
+    orderCount: sessionOrders.length,
+    payments,
+    totalSales: Object.values(payments).reduce((sum, value) => sum + Number(value || 0), 0),
+    cashSales,
+    supplies,
+    withdrawals,
+    expectedCash: Number(cash.openingAmount || 0) + cashSales + supplies - withdrawals
   };
 }
 
@@ -1045,12 +1175,13 @@ function getStoreBySession(db, session) {
       orders: db.orders || [],
       coupons: db.coupons || [],
       teamUsers: [],
-      auditLogs: []
+      auditLogs: [],
+      cashSessions: []
     };
   }
 
   const establishment = db.establishments.find((item) => item.id === session.establishmentId);
-  if (!establishment) return { store: db.store, products: [], orders: [], coupons: [], teamUsers: [], auditLogs: [] };
+  if (!establishment) return { store: db.store, products: [], orders: [], coupons: [], teamUsers: [], auditLogs: [], cashSessions: [] };
 
   return {
     store: {
@@ -1061,7 +1192,8 @@ function getStoreBySession(db, session) {
     orders: establishment.orders || [],
     coupons: establishment.coupons || [],
     teamUsers: establishment.teamUsers || [],
-    auditLogs: establishment.auditLogs || []
+    auditLogs: establishment.auditLogs || [],
+    cashSessions: establishment.cashSessions || []
   };
 }
 

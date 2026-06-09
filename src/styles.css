@@ -3123,6 +3123,150 @@ input[type="file"] {
   color: #64748b;
 }
 
+.cash-register-open,
+.cash-register-closed,
+.cash-session-history {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cash-register-open {
+  border-top: 4px solid #16a34a;
+}
+
+.cash-register-head,
+.cash-register-closed,
+.cash-register-actions,
+.cash-session-history > article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cash-register-head span,
+.cash-register-closed span,
+.cash-session-history > article span {
+  display: grid;
+  gap: 3px;
+}
+
+.cash-register-head small,
+.cash-register-closed small,
+.cash-session-history small,
+.cash-movement-preview small {
+  color: #64748b;
+}
+
+.cash-register-head > b {
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+}
+
+.cash-register-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 13px 0;
+}
+
+.cash-register-metrics span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.cash-register-metrics small {
+  color: #64748b;
+  font-weight: 750;
+}
+
+.cash-register-metrics strong {
+  font-size: 17px;
+}
+
+.cash-register-actions {
+  justify-content: flex-end;
+}
+
+.cash-movement-preview {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cash-movement-preview span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.negative,
+.danger-text {
+  color: #dc2626 !important;
+}
+
+.cash-session-history {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cash-session-history > article {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, auto)) auto;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.cash-session-history > article > button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbe4ef;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.cash-action-modal {
+  max-width: 520px;
+}
+
+.cash-expected-box {
+  display: grid;
+  gap: 4px;
+  padding: 13px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+}
+
+.cash-expected-box small {
+  color: #15803d;
+  font-weight: 750;
+}
+
+.cash-expected-box strong {
+  color: #166534;
+  font-size: 22px;
+}
+
 .pizza-options-panel {
   max-width: 760px;
   display: grid;
@@ -4669,6 +4813,22 @@ input[type="file"] {
 
   .report-products {
     grid-column: auto;
+  }
+
+  .cash-register-metrics,
+  .cash-session-history > article {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cash-register-actions,
+  .cash-register-closed {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cash-register-actions button,
+  .cash-register-closed button {
+    width: 100%;
   }
 
   .team-user-card > b {
