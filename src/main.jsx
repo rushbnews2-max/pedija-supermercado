@@ -1432,12 +1432,16 @@ function StoreModal({ store, onSave, onClose }) {
 
 function LocalService({ store, saveStore, products, orders, addOrder }) {
   const tables = Array.isArray(store.localTables) ? store.localTables : [];
+  const waiters = Array.isArray(store.localWaiters) ? store.localWaiters : [];
   const [selectedTable, setSelectedTable] = React.useState(null);
+  const [selectedWaiter, setSelectedWaiter] = React.useState('');
+  const [tableFilter, setTableFilter] = React.useState('Todas');
   const [cart, setCart] = React.useState({});
   const [customizingProduct, setCustomizingProduct] = React.useState(null);
   const [status, setStatus] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const activeProducts = products.filter((product) => product.active !== false);
+  const visibleTables = tables.filter((table) => tableFilter === 'Todas' || (table.status || 'Livre') === tableFilter);
   const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && !['Entregue', 'Cancelado'].includes(order.status)) : [];
   const cartItems = Object.entries(cart).map(([key, entry]) => {
     const product = products.find((item) => item.id === entry.productId);
@@ -1467,6 +1471,21 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
     }
     await persistTables([...tables, { id: crypto.randomUUID(), name: name.trim(), status: 'Livre' }]);
     setStatus('Mesa cadastrada.');
+  };
+  const addWaiter = async () => {
+    const name = prompt('Nome do garcom:');
+    if (!name?.trim()) return;
+    if (waiters.some((waiter) => normalizeText(waiter.name) === normalizeText(name))) {
+      setStatus('Esse garcom ja esta cadastrado.');
+      return;
+    }
+    await saveStore({ ...store, localWaiters: [...waiters, { id: crypto.randomUUID(), name: name.trim(), active: true }] });
+    setStatus('Garcom cadastrado.');
+  };
+  const removeWaiter = async (waiter) => {
+    if (!confirm(`Excluir o garcom ${waiter.name}?`)) return;
+    await saveStore({ ...store, localWaiters: waiters.filter((item) => item.id !== waiter.id) });
+    if (selectedWaiter === waiter.name) setSelectedWaiter('');
   };
   const updateTableStatus = async (table, nextStatus) => {
     await persistTables(tables.map((item) => item.id === table.id ? { ...item, status: nextStatus } : item));
@@ -1511,6 +1530,10 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
   });
   const sendToKitchen = async () => {
     if (!selectedTable || !cartItems.length) return;
+    if (waiters.length && !selectedWaiter) {
+      setStatus('Selecione o garcom responsavel pela mesa.');
+      return;
+    }
     setSending(true);
     setStatus('');
     try {
@@ -1524,6 +1547,7 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
         serviceType: 'local',
         tableId: selectedTable.id,
         tableName: selectedTable.name,
+        waiter: selectedWaiter,
         items: cartItems,
         total: cartTotal,
         notes: 'Pedido realizado no atendimento local'
@@ -1548,54 +1572,69 @@ function LocalService({ store, saveStore, products, orders, addOrder }) {
   return (
     <>
       <PageHeader title="Atendimento local" subtitle="Abra mesas e envie pedidos direto para o preparo">
+        <button className="ghost-button" onClick={addWaiter}><Users size={18} /> Novo garcom</button>
         <button className="orange-button" onClick={addTable}><Plus size={18} /> Nova mesa</button>
       </PageHeader>
       {status && <p className="form-status">{status}</p>}
+      <div className="local-service-toolbar">
+        <div className="tabs">
+          {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || (table.status || 'Livre') === name).length})</button>)}
+        </div>
+        <div className="waiter-list">
+          <strong>Garcons</strong>
+          {waiters.map((waiter) => <span key={waiter.id}>{waiter.name}<button type="button" onClick={() => removeWaiter(waiter)} aria-label={`Excluir ${waiter.name}`}><X size={13} /></button></span>)}
+          {!waiters.length && <small>Nenhum garcom cadastrado</small>}
+        </div>
+      </div>
       {!tables.length ? (
         <article className="placeholder-panel"><strong>Nenhuma mesa cadastrada</strong><p>Cadastre as mesas para iniciar o atendimento no local.</p></article>
       ) : (
-        <section className="local-service-layout">
-          <div className="table-grid">
-            {tables.map((table) => {
+        <section className="table-grid">
+            {visibleTables.map((table) => {
               const activeCount = orders.filter((order) => order.serviceType === 'local' && order.tableId === table.id && !['Entregue', 'Cancelado'].includes(order.status)).length;
               return (
                 <article className={`table-card ${table.status === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
-                  <button type="button" onClick={() => { setSelectedTable(table); setCart({}); setStatus(''); }}>
+                  <button type="button" onClick={() => { setSelectedTable(table); setSelectedWaiter(''); setCart({}); setStatus(''); }}>
                     <ReceiptText size={24} /><strong>{table.name}</strong><span>{table.status || 'Livre'}</span>{activeCount > 0 && <small>{activeCount} pedidos ativos</small>}
                   </button>
                   <button type="button" className="table-delete" onClick={() => removeTable(table)} aria-label={`Excluir ${table.name}`}><Trash2 size={15} /></button>
                 </article>
               );
             })}
-          </div>
-          {selectedTable && (
-            <section className="local-order-panel">
-              <div className="local-order-head">
-                <div><strong>{selectedTable.name}</strong><small>{tableOrders.length} pedidos ativos · {selectedTable.status || 'Livre'}</small></div>
-                {selectedTable.status === 'Ocupada' && <button className="ghost-button" onClick={closeTable}><Check size={16} /> Fechar mesa</button>}
-              </div>
-              <div className="local-product-list">
-                {activeProducts.map((product) => (
-                  <button type="button" onClick={() => addProductToTable(product)} key={product.id}>
-                    <ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} />
-                  </button>
-                ))}
-              </div>
-              <div className="local-cart">
-                <strong>Nova solicitacao</strong>
-                {cartItems.map((item) => (
-                  <div className="local-cart-item" key={item.cartKey}>
-                    <span><strong>{item.name}</strong><small>{formatItemOptions(item)}</small></span>
-                    <div><button type="button" onClick={() => changeQty(item.cartKey, -1)}>-</button><b>{item.qty}</b><button type="button" onClick={() => changeQty(item.cartKey, 1)}>+</button></div>
-                  </div>
-                ))}
-                {!cartItems.length && <p className="empty">Selecione os produtos que o cliente pediu.</p>}
-                <div className="local-cart-total"><span>Total desta solicitacao</span><strong>{BRL.format(cartTotal)}</strong></div>
-                <button className="orange-button" type="button" disabled={!cartItems.length || sending} onClick={sendToKitchen}><ShoppingBag size={18} /> {sending ? 'Enviando...' : 'Enviar para preparo'}</button>
-              </div>
-            </section>
-          )}
         </section>
+      )}
+      {selectedTable && (
+        <div className="overlay">
+          <section className="modal local-order-panel">
+            <div className="modal-head">
+              <div><h2>{selectedTable.name}</h2><small>{tableOrders.length} pedidos ativos · {selectedTable.status || 'Livre'}</small></div>
+              <button type="button" onClick={() => setSelectedTable(null)}><X size={20} /></button>
+            </div>
+            <div className="local-order-actions">
+              <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>
+              {selectedTable.status === 'Ocupada' && <button className="ghost-button" onClick={closeTable}><Check size={16} /> Fechar mesa</button>}
+            </div>
+            <div className="local-product-list">
+              {activeProducts.map((product) => (
+                <button type="button" onClick={() => addProductToTable(product)} key={product.id}>
+                  <ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{BRL.format(Number(product.price || 0))}</b><Plus size={17} />
+                </button>
+              ))}
+            </div>
+            <div className="local-cart">
+              <strong>Nova solicitacao</strong>
+              {cartItems.map((item) => (
+                <div className="local-cart-item" key={item.cartKey}>
+                  <span><strong>{item.name}</strong><small>{formatItemOptions(item)}</small></span>
+                  <div><button type="button" onClick={() => changeQty(item.cartKey, -1)}>-</button><b>{item.qty}</b><button type="button" onClick={() => changeQty(item.cartKey, 1)}>+</button></div>
+                </div>
+              ))}
+              {!cartItems.length && <p className="empty">Selecione os produtos que o cliente pediu.</p>}
+              <div className="local-cart-total"><span>Total desta solicitacao</span><strong>{BRL.format(cartTotal)}</strong></div>
+              <button className="orange-button" type="button" disabled={!cartItems.length || sending} onClick={sendToKitchen}><ShoppingBag size={18} /> {sending ? 'Enviando...' : 'Enviar para preparo'}</button>
+            </div>
+          </section>
+        </div>
       )}
       {customizingProduct && <ProductCustomizeModal store={store} product={customizingProduct} onClose={() => setCustomizingProduct(null)} onAdd={(options) => { addConfiguredItem(customizingProduct, options); setCustomizingProduct(null); }} />}
     </>
@@ -2212,9 +2251,14 @@ function PdfImportModal({ mode = 'erp', products = [], updateProduct, importProd
 
 function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, autoPrintEnabled, setAutoPrintEnabled }) {
   const [filter, setFilter] = React.useState('Ativos');
+  const [orderType, setOrderType] = React.useState('Delivery');
+  const [tableFilter, setTableFilter] = React.useState('Todas');
   const [dateFilter, setDateFilter] = React.useState(todayInputValue());
   const needsDateFilter = filter !== 'Ativos';
-  const filtered = orders.filter((order) => {
+  const typeOrders = orders.filter((order) => orderType === 'Local' ? order.serviceType === 'local' : order.serviceType !== 'local');
+  const localTables = [...new Set(orders.filter((order) => order.serviceType === 'local' && order.tableName).map((order) => order.tableName))];
+  const filtered = typeOrders.filter((order) => {
+    if (orderType === 'Local' && tableFilter !== 'Todas' && order.tableName !== tableFilter) return false;
     if (filter === 'Ativos') return ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status);
     const statusMatches = filter === 'Entregues'
       ? order.status === 'Entregue'
@@ -2225,10 +2269,10 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
   });
 
   const counts = {
-    Ativos: orders.filter((order) => ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status)).length,
-    Entregues: orders.filter((order) => order.status === 'Entregue').length,
-    Cancelados: orders.filter((order) => order.status === 'Cancelado').length,
-    Todos: orders.length
+    Ativos: typeOrders.filter((order) => ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status)).length,
+    Entregues: typeOrders.filter((order) => order.status === 'Entregue').length,
+    Cancelados: typeOrders.filter((order) => order.status === 'Cancelado').length,
+    Todos: typeOrders.length
   };
 
   return (
@@ -2239,11 +2283,20 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
           <span>Imprimir novos pedidos automaticamente</span>
         </label>
       </PageHeader>
+      <div className="order-type-tabs">
+        <button className={orderType === 'Delivery' ? 'active' : ''} onClick={() => { setOrderType('Delivery'); setTableFilter('Todas'); }}><Truck size={18} /> Delivery ({orders.filter((order) => order.serviceType !== 'local').length})</button>
+        <button className={orderType === 'Local' ? 'active' : ''} onClick={() => setOrderType('Local')}><ReceiptText size={18} /> Atendimento local ({orders.filter((order) => order.serviceType === 'local').length})</button>
+      </div>
       <div className="tabs">
         {Object.keys(counts).map((name) => (
           <button key={name} className={filter === name ? 'active' : ''} onClick={() => setFilter(name)}>{name} ({counts[name]})</button>
         ))}
       </div>
+      {orderType === 'Local' && (
+        <div className="order-table-filter">
+          <label>Filtrar por mesa<select value={tableFilter} onChange={(event) => setTableFilter(event.target.value)}><option>Todas</option>{localTables.map((table) => <option key={table}>{table}</option>)}</select></label>
+        </div>
+      )}
       {needsDateFilter && (
         <div className="order-date-filter">
           <label>Data dos pedidos<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
@@ -2272,6 +2325,7 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
     <article className="order-card" onClick={onOpen}>
       <div className="order-top">
         <h3>#{order.id}</h3>
+        {order.serviceType === 'local' && <span className="local-order-pill">{order.tableName || 'Local'}{order.waiter ? ` · ${order.waiter}` : ''}</span>}
         <span className={order.status === 'Pendente' ? 'pending-pill' : 'green-pill'}>{order.status}</span>
         <small>{order.createdAt}</small>
       </div>
@@ -2284,8 +2338,8 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
       </footer>
       <div className="order-actions" onClick={(event) => event.stopPropagation()}>
         <button onClick={() => updateOrderStatus(order.id, 'Em separacao')}>Separar</button>
-        <button onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}>Saiu</button>
-        <button onClick={() => updateOrderStatus(order.id, 'Entregue')}>Entregar</button>
+        {order.serviceType !== 'local' && <button onClick={() => updateOrderStatus(order.id, 'Saiu para entrega')}>Saiu</button>}
+        <button onClick={() => updateOrderStatus(order.id, 'Entregue')}>{order.serviceType === 'local' ? 'Finalizar' : 'Entregar'}</button>
         <button onClick={() => updateOrderStatus(order.id, 'Cancelado')}>Cancelar</button>
         {order.location?.mapsUrl && <a href={order.location.mapsUrl} target="_blank" rel="noreferrer"><MapPin size={14} /> GPS</a>}
         {courierLocationUrl && <a href={courierLocationUrl} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Local</a>}
@@ -2297,7 +2351,7 @@ function OrderCard({ order, updateOrderStatus, deleteOrder, onOpen }) {
 }
 
 function Deliveries({ orders, updateOrderStatus, setSelectedOrder }) {
-  const deliveryOrders = orders.filter((order) => order.deliveryMethod !== 'Retirada' && ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status));
+  const deliveryOrders = orders.filter((order) => order.serviceType !== 'local' && order.deliveryMethod !== 'Retirada' && ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status));
 
   return (
     <>
@@ -2375,6 +2429,8 @@ function ThermalTicket({ store, order }) {
       <p>Cliente: {order.customer}</p>
       <p>Telefone: {order.phone}</p>
       <p>Tipo: {order.deliveryMethod || 'Entrega'}</p>
+      {order.tableName && <p>Mesa: {order.tableName}</p>}
+      {order.waiter && <p>Garcom: {order.waiter}</p>}
       <p>Endereco: {order.address}</p>
       {order.location?.mapsUrl && (
         <div className="ticket-qr-box">
@@ -2531,6 +2587,8 @@ function thermalTicketMarkup(store, order) {
     <p>Cliente: ${escapeHtml(order.customer)}</p>
     <p>Telefone: ${escapeHtml(order.phone)}</p>
     <p>Tipo: ${escapeHtml(order.deliveryMethod || 'Entrega')}</p>
+    ${order.tableName ? `<p>Mesa: ${escapeHtml(order.tableName)}</p>` : ''}
+    ${order.waiter ? `<p>Garcom: ${escapeHtml(order.waiter)}</p>` : ''}
     <p>Endereco: ${escapeHtml(order.address)}</p>
     ${order.location?.mapsUrl ? `<div class="qr-box"><strong>Localizacao no GPS</strong><img src="${escapeHtml(qrCodeUrl(order.location.mapsUrl))}" alt="QR Code da localizacao" /><small>Aponte a camera para abrir no mapa.</small></div>` : ''}
     ${order.deliveryNeighborhood ? `<p>Bairro: ${escapeHtml(order.deliveryNeighborhood)}</p>` : ''}
