@@ -1578,7 +1578,9 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
   const [status, setStatus] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const activeProducts = products.filter((product) => product.active !== false);
-  const visibleTables = tables.filter((table) => tableFilter === 'Todas' || (table.status || 'Livre') === tableFilter);
+  const openOrdersForTable = (tableId) => orders.filter((order) => order.serviceType === 'local' && order.tableId === tableId && order.settled !== true && order.status !== 'Cancelado');
+  const tableStatus = (table) => openOrdersForTable(table.id).length ? 'Ocupada' : 'Livre';
+  const visibleTables = tables.filter((table) => tableFilter === 'Todas' || tableStatus(table) === tableFilter);
   const tableOrders = selectedTable ? orders.filter((order) => order.serviceType === 'local' && order.tableId === selectedTable.id && order.settled !== true && order.status !== 'Cancelado') : [];
   const cartItems = Object.entries(cart).map(([key, entry]) => {
     const product = products.find((item) => item.id === entry.productId);
@@ -1614,7 +1616,7 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
     setSelectedTable((current) => current?.id === table.id ? { ...current, status: nextStatus } : current);
   };
   const removeTable = async (table) => {
-    if (table.status === 'Ocupada') {
+    if (tableStatus(table) === 'Ocupada') {
       setStatus('Feche a comanda antes de excluir esta mesa.');
       return;
     }
@@ -1704,7 +1706,7 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
       {status && <p className="form-status">{status}</p>}
       <div className="local-service-toolbar">
         <div className="tabs">
-          {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || (table.status || 'Livre') === name).length})</button>)}
+          {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || tableStatus(table) === name).length})</button>)}
         </div>
       </div>
       {!tables.length ? (
@@ -1712,11 +1714,12 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
       ) : (
         <section className="table-grid">
             {visibleTables.map((table) => {
-              const activeCount = orders.filter((order) => order.serviceType === 'local' && order.tableId === table.id && order.settled !== true && order.status !== 'Cancelado').length;
+              const activeCount = openOrdersForTable(table.id).length;
+              const currentStatus = tableStatus(table);
               return (
-                <article className={`table-card ${table.status === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
+                <article className={`table-card ${currentStatus === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
                   <button type="button" onClick={() => { setSelectedTable(table); setSelectedWaiter(''); setCart({}); setStatus(''); }}>
-                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{table.status || 'Livre'}</span>{activeCount > 0 && <small>{activeCount} pedidos ativos</small>}
+                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{currentStatus}</span>{activeCount > 0 && <small>{activeCount} pedidos ativos</small>}
                   </button>
                   <button type="button" className="table-delete" onClick={() => removeTable(table)} aria-label={`Excluir ${table.name}`}><Trash2 size={15} /></button>
                 </article>
@@ -1728,12 +1731,12 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
         <div className="overlay">
           <section className="modal local-order-panel">
             <div className="modal-head">
-              <div><h2>{selectedTable.name}</h2><small>{tableOrders.length} pedidos ativos · {selectedTable.status || 'Livre'}</small></div>
+              <div><h2>{selectedTable.name}</h2><small>{tableOrders.length} pedidos ativos · {tableOrders.length ? 'Ocupada' : 'Livre'}</small></div>
               <button type="button" onClick={() => setSelectedTable(null)}><X size={20} /></button>
             </div>
             <div className="local-order-actions">
               <label>Garcom responsavel<select value={selectedWaiter} onChange={(event) => setSelectedWaiter(event.target.value)}><option value="">Selecione o garcom</option>{waiters.map((waiter) => <option value={waiter.name} key={waiter.id}>{waiter.name}</option>)}</select></label>
-              {selectedTable.status === 'Ocupada' && store.tablePaymentsEnabled && <button className="ghost-button" onClick={closeTable}><CreditCard size={16} /> Receber e fechar</button>}
+              {tableOrders.length > 0 && store.tablePaymentsEnabled && <button className="ghost-button" onClick={closeTable}><CreditCard size={16} /> Receber e fechar</button>}
             </div>
             <div className="local-product-list">
               {activeProducts.map((product) => (
