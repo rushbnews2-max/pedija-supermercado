@@ -1777,7 +1777,7 @@ input[type="file"] {
 
 .local-cash-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -3051,6 +3051,76 @@ input[type="file"] {
 
 .team-user-modal {
   max-width: 520px;
+}
+
+.report-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.report-panel,
+.report-order-table {
+  padding: 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-products {
+  grid-column: 1 / -1;
+}
+
+.report-ranking {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.report-ranking span,
+.report-order-table article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.report-ranking small {
+  color: #475569;
+  font-weight: 750;
+}
+
+.report-order-table {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.report-order-table > div,
+.report-order-table article span {
+  display: grid;
+  gap: 3px;
+}
+
+.report-order-table > div small,
+.report-order-table article small {
+  color: #64748b;
 }
 
 .pizza-options-panel {
@@ -4590,6 +4660,15 @@ input[type="file"] {
   .team-user-card,
   .audit-list article {
     grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .report-filters,
+  .report-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-products {
+    grid-column: auto;
   }
 
   .team-user-card > b {

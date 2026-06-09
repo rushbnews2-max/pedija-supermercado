@@ -1069,9 +1069,9 @@ function App() {
             {page === 'pedidos' && <Orders orders={orders} updateOrderStatus={updateOrderStatusApi} deleteOrder={deleteOrder} setSelectedOrder={setSelectedOrder} autoPrintEnabled={autoPrintEnabled} setAutoPrintEnabled={toggleAutoPrint} />}
             {page === 'atendimento-local' && storeData.localServiceEnabled && <LocalService store={storeData} saveStore={saveStore} products={products} orders={orders} addOrder={addOrder} closeLocalTable={closeLocalTable} />}
             {page === 'garcons' && storeData.localServiceEnabled && storeData.waiterAppEnabled && <WaitersPage store={storeData} saveStore={saveStore} />}
-            {page === 'caixa-local' && storeData.localServiceEnabled && storeData.tablePaymentsEnabled && <LocalCash orders={orders} />}
+            {page === 'caixa-local' && storeData.localServiceEnabled && storeData.tablePaymentsEnabled && <LocalCash store={storeData} orders={orders} />}
             {page === 'entregas' && <Deliveries orders={orders} updateOrderStatus={updateOrderStatusApi} setSelectedOrder={setSelectedOrder} />}
-            {page === 'relatorios' && <Reports orders={orders} products={products} />}
+            {page === 'relatorios' && <Reports store={storeData} orders={orders} products={products} />}
             {page === 'cupons' && <Coupons coupons={coupons} createCoupon={createCoupon} updateCoupon={updateCoupon} deleteCoupon={deleteCoupon} />}
             {page === 'usuarios' && <UsersPage users={teamUsers} auditLogs={auditLogs} createUser={createTeamUser} updateUser={updateTeamUser} deleteUser={deleteTeamUser} />}
           </>
@@ -1986,8 +1986,32 @@ function printTableAccount(table, orders, settlement, mode, targetWindow = null)
   printWindow.document.close();
 }
 
-function LocalCash({ orders }) {
-  const [dateFilter, setDateFilter] = React.useState(todayInputValue());
+function printFinancialReport({ store, title, period, metrics = [], payments = {}, headers = [], rows = [], sections = [] }) {
+  const summary = metrics.map(([label, value]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></article>`).join('');
+  const paymentRows = Object.entries(payments).sort((a, b) => b[1] - a[1]).map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(BRL.format(value))}</td></tr>`).join('');
+  const detailRows = rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`).join('');
+  const extraSections = sections.map(([heading, entries]) => `<section><h2>${escapeHtml(heading)}</h2><table><tbody>${entries.map(([name, value]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(value)}</td></tr>`).join('')}</tbody></table></section>`).join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#172033;font:11px Arial,sans-serif}header{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:3px solid #f45106}h1{margin:0;font-size:24px}h2{margin:22px 0 8px;font-size:15px}.brand{font-size:18px;font-weight:900;color:#07172d}.brand span{color:#f45106}.muted,small{color:#64748b}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.summary article{padding:10px;border:1px solid #dbe4ef;border-radius:6px}.summary small,.summary strong{display:block}.summary strong{margin-top:4px;font-size:16px}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}th{background:#f8fafc;color:#334155;font-size:10px;text-transform:uppercase}td:last-child,th:last-child{text-align:right}footer{margin-top:24px;padding-top:9px;border-top:1px solid #e2e8f0;color:#64748b;text-align:center}@media print{button{display:none}}
+  </style></head><body><header><div><div class="brand"><span>Pedi</span>Jah</div><h1>${escapeHtml(title)}</h1><p class="muted">${escapeHtml(store?.name || 'Estabelecimento')}</p></div><div><b>Periodo</b><p>${escapeHtml(period || 'Todos os periodos')}</p><small>Gerado em ${new Date().toLocaleString('pt-BR')}</small></div></header>
+  <div class="summary">${summary}</div>
+  <section><h2>Formas de pagamento</h2><table><tbody>${paymentRows || '<tr><td>Nenhum pagamento encontrado</td><td>-</td></tr>'}</tbody></table></section>
+  ${extraSections}
+  <section><h2>Detalhamento</h2><table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${detailRows || `<tr><td colspan="${headers.length || 1}">Nenhum registro encontrado.</td></tr>`}</tbody></table></section>
+  <footer>Relatorio gerado pelo PediJah. Na janela de impressao, selecione "Salvar como PDF".</footer><script>window.onload=()=>window.print()<\/script></body></html>`;
+  const reportWindow = window.open('', '_blank', 'width=1100,height=800');
+  if (!reportWindow) {
+    alert('Permita pop-ups para gerar o PDF.');
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+}
+
+function LocalCash({ store, orders }) {
+  const [startDate, setStartDate] = React.useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
+  const [endDate, setEndDate] = React.useState(todayInputValue());
   const [tableFilter, setTableFilter] = React.useState('Todas');
   const [waiterFilter, setWaiterFilter] = React.useState('Todos');
   const [selectedClosing, setSelectedClosing] = React.useState(null);
@@ -2011,7 +2035,10 @@ function LocalCash({ orders }) {
   const tables = [...new Set(closings.map((closing) => closing.tableName))].sort();
   const waiters = [...new Set(closings.flatMap((closing) => closing.waiters))].sort();
   const filtered = closings
-    .filter((closing) => !dateFilter || todayInputValue(new Date(closing.settledAt)) === dateFilter)
+    .filter((closing) => {
+      const date = todayInputValue(new Date(closing.settledAt));
+      return (!startDate || date >= startDate) && (!endDate || date <= endDate);
+    })
     .filter((closing) => tableFilter === 'Todas' || closing.tableName === tableFilter)
     .filter((closing) => waiterFilter === 'Todos' || closing.waiters.includes(waiterFilter))
     .sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt));
@@ -2027,7 +2054,28 @@ function LocalCash({ orders }) {
 
   return (
     <>
-      <PageHeader title="Caixa local" subtitle="Confira mesas recebidas, pagamentos e fechamento do salao" />
+      <PageHeader title="Caixa local" subtitle="Confira mesas recebidas, pagamentos e fechamento do salao">
+        <button className="ghost-button" type="button" onClick={() => printFinancialReport({
+          store,
+          title: 'Historico do caixa local',
+          period: `${formatReportDate(startDate)} ate ${formatReportDate(endDate)}`,
+          metrics: [
+            ['Mesas fechadas', filtered.length],
+            ['Total recebido', BRL.format(totalReceived)],
+            ['Taxa de servico', BRL.format(serviceTotal)],
+            ['Descontos', BRL.format(discountTotal)]
+          ],
+          payments,
+          rows: filtered.map((closing) => [
+            new Date(closing.settledAt).toLocaleString('pt-BR'),
+            closing.tableName,
+            closing.waiters.join(', ') || 'Sem garcom',
+            closing.settlement.payment || 'Pagamento dividido',
+            BRL.format(Number(closing.settlement.total || 0))
+          ]),
+          headers: ['Data', 'Mesa', 'Garcom', 'Pagamento', 'Total']
+        })}><Download size={17} /> Gerar PDF</button>
+      </PageHeader>
       <section className="metric-grid local-cash-metrics">
         <Metric label="Mesas fechadas" value={filtered.length} icon={ReceiptText} />
         <Metric label="Total recebido" value={BRL.format(totalReceived)} icon={CreditCard} />
@@ -2035,7 +2083,8 @@ function LocalCash({ orders }) {
         <Metric label="Descontos" value={BRL.format(discountTotal)} icon={Tag} />
       </section>
       <section className="local-cash-filters">
-        <label>Data<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label>
+        <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+        <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
         <label>Mesa<select value={tableFilter} onChange={(event) => setTableFilter(event.target.value)}><option>Todas</option>{tables.map((table) => <option key={table}>{table}</option>)}</select></label>
         <label>Garcom<select value={waiterFilter} onChange={(event) => setWaiterFilter(event.target.value)}><option>Todos</option>{waiters.map((waiter) => <option key={waiter}>{waiter}</option>)}</select></label>
       </section>
@@ -3900,15 +3949,82 @@ function OrderTracking({ store, order, loading }) {
   );
 }
 
-function Reports({ orders, products }) {
-  const revenue = orders.reduce((sum, order) => sum + orderTotal(order), 0);
+function Reports({ store, orders, products }) {
+  const [startDate, setStartDate] = React.useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
+  const [endDate, setEndDate] = React.useState(todayInputValue());
+  const [statusFilter, setStatusFilter] = React.useState('Validos');
+  const filtered = orders.filter((order) => {
+    const date = orderDateInputValue(order);
+    const inPeriod = (!startDate || date >= startDate) && (!endDate || date <= endDate);
+    const matchesStatus = statusFilter === 'Todos'
+      || (statusFilter === 'Validos' && order.status !== 'Cancelado')
+      || order.status === statusFilter;
+    return inPeriod && matchesStatus;
+  });
+  const revenue = filtered.reduce((sum, order) => sum + orderTotal(order), 0);
+  const delivered = filtered.filter((order) => order.status === 'Entregue' || order.settled).length;
+  const canceled = filtered.filter((order) => order.status === 'Cancelado').length;
+  const averageTicket = filtered.length ? revenue / filtered.length : 0;
+  const itemCount = filtered.reduce((sum, order) => sum + order.items.reduce((total, item) => total + Number(item.qty || 0), 0), 0);
+  const payments = filtered.reduce((summary, order) => {
+    const lines = order.settlement?.payments || [{ method: order.payment || 'Nao informado', value: order.settlement?.total ?? orderTotal(order) }];
+    lines.forEach((payment) => { summary[payment.method] = Number(summary[payment.method] || 0) + Number(payment.value || 0); });
+    return summary;
+  }, {});
+  const channels = filtered.reduce((summary, order) => {
+    const channel = order.serviceType === 'local' ? 'Consumo no local' : order.deliveryMethod || 'Delivery/retirada';
+    summary[channel] = Number(summary[channel] || 0) + orderTotal(order);
+    return summary;
+  }, {});
+  const productSales = Object.values(filtered.reduce((summary, order) => {
+    order.items.forEach((item) => {
+      const key = item.productId || item.name;
+      if (!summary[key]) summary[key] = { name: item.name, qty: 0, total: 0 };
+      summary[key].qty += Number(item.qty || 0);
+      summary[key].total += Number(item.qty || 0) * itemUnitPrice(item);
+    });
+    return summary;
+  }, {})).sort((a, b) => b.total - a.total).slice(0, 10);
+  const period = `${formatReportDate(startDate)} ate ${formatReportDate(endDate)}`;
+  const exportPdf = () => printFinancialReport({
+    store,
+    title: 'Relatorio financeiro',
+    period,
+    metrics: [['Faturamento', BRL.format(revenue)], ['Pedidos', filtered.length], ['Ticket medio', BRL.format(averageTicket)], ['Itens vendidos', itemCount], ['Entregues', delivered], ['Cancelados', canceled]],
+    payments,
+    rows: filtered.map((order) => [orderDateInputValue(order) ? formatReportDate(orderDateInputValue(order)) : order.createdAt, `#${order.id}`, order.customer || order.tableName || 'Cliente', order.status, order.payment || order.settlement?.payment || 'Nao informado', BRL.format(orderTotal(order))]),
+    headers: ['Data', 'Pedido', 'Cliente/mesa', 'Status', 'Pagamento', 'Total'],
+    sections: [
+      ['Vendas por canal', Object.entries(channels).map(([name, value]) => [name, BRL.format(value)])],
+      ['Produtos mais vendidos', productSales.map((item) => [`${item.qty}x ${item.name}`, BRL.format(item.total)])]
+    ]
+  });
+
   return (
     <>
-      <PageHeader title="Relatorios" subtitle="Resumo de vendas e operacao" />
-      <section className="metric-grid">
-        <Metric label="Vendas totais" value={BRL.format(revenue)} icon={ReceiptText} />
-        <Metric label="Pedidos" value={orders.length} icon={ShoppingBag} />
-        <Metric label="Itens cadastrados" value={products.length} icon={Box} />
+      <PageHeader title="Relatorio financeiro" subtitle="Analise vendas, recebimentos e desempenho por periodo">
+        <button className="orange-button" type="button" onClick={exportPdf}><Download size={17} /> Gerar PDF</button>
+      </PageHeader>
+      <section className="report-filters">
+        <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+        <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+        <label>Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Validos</option><option>Todos</option><option>Entregue</option><option>Cancelado</option><option>Pendente</option></select></label>
+      </section>
+      <section className="metric-grid report-metrics">
+        <Metric label="Faturamento" value={BRL.format(revenue)} icon={ReceiptText} />
+        <Metric label="Pedidos" value={filtered.length} icon={ShoppingBag} />
+        <Metric label="Ticket medio" value={BRL.format(averageTicket)} icon={CreditCard} />
+        <Metric label="Itens vendidos" value={itemCount} icon={Box} />
+      </section>
+      <section className="report-dashboard-grid">
+        <article className="report-panel"><strong>Formas de pagamento</strong><div className="report-ranking">{Object.entries(payments).sort((a, b) => b[1] - a[1]).map(([name, value]) => <span key={name}><small>{name}</small><b>{BRL.format(value)}</b></span>)}{!Object.keys(payments).length && <p className="empty">Nenhum pagamento no periodo.</p>}</div></article>
+        <article className="report-panel"><strong>Vendas por canal</strong><div className="report-ranking">{Object.entries(channels).sort((a, b) => b[1] - a[1]).map(([name, value]) => <span key={name}><small>{name}</small><b>{BRL.format(value)}</b></span>)}</div></article>
+        <article className="report-panel report-products"><strong>Produtos mais vendidos</strong><div className="report-ranking">{productSales.map((item, index) => <span key={item.name}><small>{index + 1}. {item.name} · {item.qty} un.</small><b>{BRL.format(item.total)}</b></span>)}{!productSales.length && <p className="empty">Nenhuma venda no periodo.</p>}</div></article>
+      </section>
+      <section className="report-order-table">
+        <div><strong>Pedidos do periodo</strong><small>{delivered} entregues · {canceled} cancelados · {products.length} produtos cadastrados</small></div>
+        {filtered.slice(0, 100).map((order) => <article key={order.id}><span><strong>#{order.id} · {order.customer || order.tableName || 'Cliente'}</strong><small>{order.createdAt} · {order.status}</small></span><b>{BRL.format(orderTotal(order))}</b></article>)}
+        {!filtered.length && <p className="empty">Nenhum pedido encontrado neste periodo.</p>}
       </section>
     </>
   );
@@ -5092,6 +5208,12 @@ function todayInputValue(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function formatReportDate(value) {
+  if (!value) return 'Sem limite';
+  const [year, month, day] = String(value).slice(0, 10).split('-');
+  return year && month && day ? `${day}/${month}/${year}` : String(value);
 }
 
 function orderMatchesDate(order, dateValue) {
