@@ -9,8 +9,8 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Impressao automatica e acesso ao painel PediJah")]
 [assembly: AssemblyCompany("PediJah")]
 [assembly: AssemblyProduct("PediJah PDV")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
 
 namespace PediJahPdv
 {
