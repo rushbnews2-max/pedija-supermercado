@@ -958,6 +958,10 @@ function App() {
     return saved;
   };
 
+  if (isWaiterPage) {
+    return <WaiterPortal slug={waiterSlug} />;
+  }
+
   if (isLanding) {
     return <MarketingSite />;
   }
@@ -1691,10 +1695,6 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
     }
     setClosingTable(selectedTable);
   };
-
-  if (isWaiterPage) {
-    return <WaiterPortal slug={waiterSlug} />;
-  }
 
   return (
     <>
