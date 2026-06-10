@@ -3267,6 +3267,350 @@ input[type="file"] {
   font-size: 22px;
 }
 
+.pos-command-header {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border: 1px solid #122844;
+  border-radius: 8px;
+  background: #07172d;
+  color: #fff;
+}
+
+.pos-command-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pos-command-title > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #32465f;
+  border-radius: 8px;
+  background: #142943;
+  color: #ff6a20;
+}
+
+.pos-command-title div {
+  display: grid;
+  gap: 3px;
+}
+
+.pos-command-title small {
+  color: #ff9b68;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pos-command-title h1,
+.pos-command-title p {
+  margin: 0;
+}
+
+.pos-command-title h1 {
+  color: #fff;
+  font-size: 25px;
+}
+
+.pos-command-title p {
+  color: #b9c7d8;
+}
+
+.pos-command-header .ghost-button {
+  border-color: #41546b;
+  background: #142943;
+  color: #fff;
+}
+
+.salon-cashier-strip {
+  gap: 10px;
+}
+
+.salon-cashier-strip article {
+  position: relative;
+  min-height: 88px;
+  overflow: hidden;
+  border: 0;
+  border-left: 4px solid #94a3b8;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .07);
+}
+
+.salon-cashier-strip .occupied-metric { border-left-color: #f59e0b; }
+.salon-cashier-strip .value-metric { border-left-color: #2563eb; }
+.salon-cashier-strip .preparing-metric { border-left-color: #e94b08; }
+.salon-cashier-strip .ready-metric { border-left-color: #16a34a; }
+.salon-cashier-strip .value-metric svg { background: #eff6ff; color: #2563eb; }
+.salon-cashier-strip .ready-metric svg { background: #f0fdf4; color: #16a34a; }
+.salon-cashier-strip .occupied-metric svg { background: #fffbeb; color: #d97706; }
+
+.cashier-toolbar {
+  min-height: 64px;
+  padding: 8px 10px 8px 14px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .05);
+}
+
+.cashier-toolbar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.cashier-toolbar > div:first-child small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.salon-cashier .table-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.salon-cashier .table-card {
+  min-height: 148px;
+  border: 1px solid #dbe4ef;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .06);
+}
+
+.salon-cashier .table-card > button:first-child {
+  min-height: 148px;
+  align-content: space-between;
+  gap: 11px;
+  padding: 14px;
+}
+
+.salon-cashier .table-card > button:first-child > strong {
+  font-size: 23px;
+}
+
+.salon-cashier .table-card > button:first-child > small {
+  width: 100%;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.salon-cashier .table-card > button:first-child > small span {
+  max-width: 105px;
+  font-size: 11px;
+}
+
+.salon-cashier .table-card > button:first-child > small b {
+  color: #2563eb;
+  font-size: 14px;
+  text-align: right;
+}
+
+.table-card-top {
+  width: calc(100% - 28px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #64748b !important;
+}
+
+.table-card-top em {
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.salon-cashier .table-card.occupied {
+  border-color: #fdba74;
+  background: #fff;
+  box-shadow: inset 0 4px 0 #f59e0b, 0 6px 18px rgba(180, 83, 9, .11);
+}
+
+.salon-cashier .table-card.occupied .table-card-top em {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.salon-cashier .table-card.occupied > button:first-child > small b {
+  color: #c2410c;
+  font-size: 17px;
+}
+
+.professional-cash {
+  display: grid;
+  gap: 14px;
+}
+
+.professional-cash .pos-command-header,
+.professional-cash .cash-register-open,
+.professional-cash .cash-register-closed,
+.professional-cash .local-payment-summary,
+.professional-cash .cash-session-history {
+  margin-bottom: 0;
+}
+
+.cash-register-open {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #193a30;
+  border-top: 0;
+  background: #0c2c26;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
+}
+
+.cash-register-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid #285047;
+}
+
+.cash-register-head span em {
+  color: #a7c8c0;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.cash-register-head > b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #164e3d;
+  color: #bbf7d0;
+}
+
+.cash-register-head > b span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+.cash-register-metrics {
+  gap: 0;
+  margin: 0;
+  padding: 0 18px;
+}
+
+.cash-register-metrics span {
+  min-height: 90px;
+  justify-content: center;
+  border: 0;
+  border-right: 1px solid #285047;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cash-register-metrics span:last-child {
+  border-right: 0;
+}
+
+.cash-register-metrics small {
+  color: #9fc2b8;
+}
+
+.cash-register-metrics strong {
+  color: #fff;
+  font-size: 20px;
+}
+
+.cash-register-metrics .expected-metric {
+  background: #143f34;
+}
+
+.cash-register-metrics .expected-metric strong {
+  color: #86efac;
+  font-size: 24px;
+}
+
+.cash-register-actions {
+  padding: 13px 18px;
+  border-top: 1px solid #285047;
+  background: #09241f;
+}
+
+.cash-register-actions .ghost-button {
+  border-color: #3c6259;
+  background: #163b33;
+  color: #fff;
+}
+
+.cash-register-actions .danger-text {
+  border-color: #7f3f44;
+  background: #3c2228;
+}
+
+.cash-movement-preview {
+  margin: 0;
+  padding: 12px 18px;
+  border-top-color: #285047;
+}
+
+.cash-movement-preview small {
+  color: #b9d0ca;
+}
+
+.cash-register-closed {
+  min-height: 110px;
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+}
+
+.cash-section-heading {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 2px;
+}
+
+.cash-section-heading span {
+  display: grid;
+  gap: 2px;
+}
+
+.cash-section-heading small {
+  color: #e94b08;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.cash-section-heading strong {
+  color: #172033;
+  font-size: 15px;
+}
+
+.professional-cash .local-cash-metrics {
+  margin-bottom: 0;
+}
+
+.professional-cash .local-cash-metrics .metric {
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.professional-cash .local-cash-filters {
+  margin-bottom: 0;
+}
+
+.professional-cash .local-payment-summary > .cash-section-heading {
+  padding: 0;
+}
+
+.cash-session-history > .cash-section-heading {
+  padding: 0;
+}
+
 .pizza-options-panel {
   max-width: 760px;
   display: grid;
@@ -4764,15 +5108,43 @@ input[type="file"] {
   .sidebar {
     position: static;
     height: auto;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
   }
 
   .sidebar nav {
     display: block;
   }
 
+  .sidebar .brand {
+    margin-bottom: 10px;
+  }
+
+  .sidebar .brand small {
+    display: none;
+  }
+
+  .sidebar-group {
+    margin-bottom: 3px;
+  }
+
+  .sidebar-group-toggle {
+    min-height: 34px;
+    padding: 6px 8px;
+  }
+
   .sidebar-group > div {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    padding: 2px 0 5px;
+  }
+
+  .sidebar-group > div button {
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 12px;
   }
 
   .content {
@@ -4829,6 +5201,44 @@ input[type="file"] {
   .cash-register-actions button,
   .cash-register-closed button {
     width: 100%;
+  }
+
+  .pos-command-header,
+  .pos-command-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pos-command-header .orange-button,
+  .pos-command-header .ghost-button {
+    width: 100%;
+  }
+
+  .salon-cashier .table-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .salon-cashier .table-card,
+  .salon-cashier .table-card > button:first-child {
+    min-height: 142px;
+  }
+
+  .salon-cashier .table-card > button:first-child > small {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .cash-register-metrics {
+    grid-template-columns: 1fr 1fr;
+    padding: 0;
+  }
+
+  .cash-register-metrics span:nth-child(2) {
+    border-right: 0;
+  }
+
+  .cash-register-metrics span:nth-child(-n + 2) {
+    border-bottom: 1px solid #285047;
   }
 
   .team-user-card > b {

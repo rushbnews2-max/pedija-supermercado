@@ -1808,18 +1808,19 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
 
   return (
     <section className="salon-cashier">
-      <PageHeader title="Caixa do salao" subtitle="Acompanhe o consumo das mesas e receba as contas">
+      <header className="pos-command-header">
+        <div className="pos-command-title"><span><ReceiptText size={24} /></span><div><small>Operacao do salao</small><h1>Caixa do salao</h1><p>Acompanhe comandas, preparo e recebimentos em tempo real</p></div></div>
         <button className="orange-button" onClick={addTable}><Plus size={18} /> Nova mesa</button>
-      </PageHeader>
+      </header>
       {status && <p className="form-status">{status}</p>}
       <section className="salon-cashier-strip">
-        <article><ReceiptText size={20} /><span><small>Mesas ocupadas</small><strong>{occupiedTables.length}</strong></span></article>
-        <article><CreditCard size={20} /><span><small>Valor em aberto</small><strong>{BRL.format(openLocalTotal)}</strong></span></article>
-        <article><Clock size={20} /><span><small>Em preparo</small><strong>{pendingPreparation}</strong></span></article>
-        <article><Check size={20} /><span><small>Prontas para receber</small><strong>{readyToReceive}</strong></span></article>
+        <article className="occupied-metric"><ReceiptText size={20} /><span><small>Mesas ocupadas</small><strong>{occupiedTables.length}</strong></span></article>
+        <article className="value-metric"><CreditCard size={20} /><span><small>Valor em aberto</small><strong>{BRL.format(openLocalTotal)}</strong></span></article>
+        <article className="preparing-metric"><Clock size={20} /><span><small>Em preparo</small><strong>{pendingPreparation}</strong></span></article>
+        <article className="ready-metric"><Check size={20} /><span><small>Prontas para receber</small><strong>{readyToReceive}</strong></span></article>
       </section>
       <div className="local-service-toolbar cashier-toolbar">
-        <strong>Mapa de mesas</strong>
+        <div><strong>Mapa de mesas</strong><small>Selecione uma mesa para consultar a comanda</small></div>
         <div className="tabs">
           {['Todas', 'Livre', 'Ocupada'].map((name) => <button type="button" className={tableFilter === name ? 'active' : ''} onClick={() => setTableFilter(name)} key={name}>{name} ({tables.filter((table) => name === 'Todas' || tableStatus(table) === name).length})</button>)}
         </div>
@@ -1836,8 +1837,9 @@ function LocalService({ store, saveStore, products, orders, addOrder, closeLocal
               return (
                 <article className={`table-card ${currentStatus === 'Ocupada' ? 'occupied' : ''} ${selectedTable?.id === table.id ? 'selected' : ''}`} key={table.id}>
                   <button type="button" onClick={() => { setSelectedTable(table); setSelectedWaiter(''); setCart({}); setStatus(''); }}>
-                    <ReceiptText size={24} /><strong>{table.name}</strong><span>{currentStatus}</span>
-                    {activeCount > 0 && <small>{activeCount} {activeCount === 1 ? 'pedido' : 'pedidos'} · <b>{BRL.format(tableTotal)}</b></small>}
+                    <span className="table-card-top"><ReceiptText size={21} /><em>{currentStatus}</em></span>
+                    <strong>{table.name}</strong>
+                    {activeCount > 0 ? <small><span>{activeCount} {activeCount === 1 ? 'pedido' : 'pedidos'}</span><b>{BRL.format(tableTotal)}</b></small> : <small><span>Disponivel para atendimento</span><b>Abrir comanda</b></small>}
                   </button>
                   <button type="button" className="table-delete" onClick={() => removeTable(table)} aria-label={`Excluir ${table.name}`}><Trash2 size={15} /></button>
                 </article>
@@ -2098,8 +2100,9 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
   };
 
   return (
-    <>
-      <PageHeader title="Caixa profissional" subtitle="Controle abertura, movimentacoes, recebimentos e fechamento">
+    <section className="professional-cash">
+      <header className="pos-command-header professional">
+        <div className="pos-command-title"><span><CreditCard size={24} /></span><div><small>Controle financeiro do turno</small><h1>Caixa profissional</h1><p>Abertura, movimentacoes, conferencia e fechamento em um so lugar</p></div></div>
         <button className="ghost-button" type="button" onClick={() => printFinancialReport({
           store,
           title: 'Historico do caixa local',
@@ -2120,14 +2123,14 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
           ]),
           headers: ['Data', 'Mesa', 'Garcom', 'Pagamento', 'Total']
         })}><Download size={17} /> Gerar PDF</button>
-      </PageHeader>
+      </header>
       {openCash ? (
         <section className="cash-register-open">
-          <div className="cash-register-head"><span><small>Caixa aberto por {openCash.openedBy}</small><strong>Aberto em {new Date(openCash.openedAt).toLocaleString('pt-BR')}</strong></span><b>Em operacao</b></div>
+          <div className="cash-register-head"><span><small>Turno atual</small><strong>{openCash.openedBy}</strong><em>Aberto em {new Date(openCash.openedAt).toLocaleString('pt-BR')}</em></span><b><span></span> Em operacao</b></div>
           <div className="cash-register-metrics">
             <span><small>Fundo inicial</small><strong>{BRL.format(openCash.openingAmount)}</strong></span>
             <span><small>Vendas do turno</small><strong>{BRL.format(Object.values(openPayments).reduce((sum, value) => sum + value, 0))}</strong></span>
-            <span><small>Dinheiro esperado</small><strong>{BRL.format(expectedCash)}</strong></span>
+            <span className="expected-metric"><small>Dinheiro esperado</small><strong>{BRL.format(expectedCash)}</strong></span>
             <span><small>Mesas recebidas</small><strong>{openCashClosings.length}</strong></span>
           </div>
           <div className="cash-register-actions"><button className="ghost-button" type="button" onClick={() => setCashAction('supply')}><Plus size={17} /> Suprimento</button><button className="ghost-button danger-text" type="button" onClick={() => setCashAction('withdrawal')}><Banknote size={17} /> Sangria</button><button className="orange-button" type="button" onClick={() => setCashAction('close')}><Check size={17} /> Fechar caixa</button></div>
@@ -2136,6 +2139,7 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
       ) : (
         <section className="cash-register-closed"><div><Banknote size={24} /><span><strong>Caixa fechado</strong><small>Abra o caixa antes de iniciar os recebimentos do turno.</small></span></div><button className="orange-button" type="button" onClick={() => setCashAction('open')}><Plus size={17} /> Abrir caixa</button></section>
       )}
+      <div className="cash-section-heading"><span><small>Movimento financeiro</small><strong>Resumo do periodo selecionado</strong></span></div>
       <section className="metric-grid local-cash-metrics">
         <Metric label="Mesas fechadas" value={filtered.length} icon={ReceiptText} />
         <Metric label="Total recebido" value={BRL.format(totalReceived)} icon={CreditCard} />
@@ -2149,9 +2153,10 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
         <label>Garcom<select value={waiterFilter} onChange={(event) => setWaiterFilter(event.target.value)}><option>Todos</option>{waiters.map((waiter) => <option key={waiter}>{waiter}</option>)}</select></label>
       </section>
       <section className="local-payment-summary">
-        <strong>Recebimentos por forma de pagamento</strong>
+        <div className="cash-section-heading"><span><small>Conferencia</small><strong>Recebimentos por forma de pagamento</strong></span></div>
         <div>{Object.entries(payments).map(([method, value]) => <span key={method}><small>{method}</small><b>{BRL.format(value)}</b></span>)}{!Object.keys(payments).length && <p className="empty">Nenhum recebimento encontrado.</p>}</div>
       </section>
+      <div className="cash-section-heading"><span><small>Mesas</small><strong>Recebimentos realizados</strong></span></div>
       <section className="local-closing-list">
         {filtered.map((closing) => (
           <article key={closing.id}>
@@ -2166,13 +2171,13 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
         {!filtered.length && <article className="placeholder-panel"><strong>Nenhuma mesa fechada</strong><p>Ajuste os filtros ou aguarde novos recebimentos.</p></article>}
       </section>
       <section className="cash-session-history">
-        <strong>Fechamentos de caixa</strong>
+        <div className="cash-section-heading"><span><small>Arquivo</small><strong>Fechamentos de caixa</strong></span></div>
         {cashSessions.filter((cash) => cash.status === 'closed').slice(0, 20).map((cash) => <article key={cash.id}><span><strong>{new Date(cash.openedAt).toLocaleDateString('pt-BR')} · {cash.openedBy}</strong><small>{new Date(cash.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} ate {new Date(cash.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small></span><span><small>Esperado</small><b>{BRL.format(cash.summary?.expectedCash || 0)}</b></span><span><small>Informado</small><b>{BRL.format(cash.countedAmount)}</b></span><span><small>Diferenca</small><b className={Number(cash.difference) < 0 ? 'negative' : ''}>{BRL.format(cash.difference)}</b></span><button type="button" aria-label="Gerar PDF do fechamento" onClick={() => printFinancialReport({ store, title: 'Fechamento de caixa', period: `${new Date(cash.openedAt).toLocaleString('pt-BR')} ate ${new Date(cash.closedAt).toLocaleString('pt-BR')}`, metrics: [['Operador', cash.openedBy], ['Vendas', BRL.format(cash.summary?.totalSales || 0)], ['Dinheiro esperado', BRL.format(cash.summary?.expectedCash || 0)], ['Valor contado', BRL.format(cash.countedAmount)], ['Diferenca', BRL.format(cash.difference)]], payments: cash.summary?.payments || {}, headers: ['Data', 'Movimento', 'Responsavel', 'Motivo', 'Valor'], rows: (cash.movements || []).map((movement) => [new Date(movement.createdAt).toLocaleString('pt-BR'), movement.type === 'supply' ? 'Suprimento' : 'Sangria', movement.createdBy, movement.reason || '-', BRL.format(movement.amount)]) })}><Download size={16} /></button></article>)}
         {!cashSessions.some((cash) => cash.status === 'closed') && <p className="empty">Nenhum fechamento de caixa registrado.</p>}
       </section>
       {selectedClosing && <LocalClosingModal closing={selectedClosing} onClose={() => setSelectedClosing(null)} />}
       {cashAction && <CashActionModal action={cashAction} form={cashForm} setForm={setCashForm} expectedCash={expectedCash} currentUser={currentUser} onClose={() => setCashAction(null)} onSubmit={submitCashAction} />}
-    </>
+    </section>
   );
 }
 
