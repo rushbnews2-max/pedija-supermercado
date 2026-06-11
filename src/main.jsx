@@ -2828,6 +2828,7 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
   const [dateFilter, setDateFilter] = React.useState(todayInputValue());
   const needsDateFilter = filter !== 'Ativos';
   const typeOrders = orders.filter((order) => orderType === 'Local' ? order.serviceType === 'local' : order.serviceType !== 'local');
+  const datedTypeOrders = typeOrders.filter((order) => orderMatchesDate(order, dateFilter));
   const localTables = [...new Set(orders.filter((order) => order.serviceType === 'local' && order.tableName).map((order) => order.tableName))];
   const filtered = typeOrders.filter((order) => {
     if (orderType === 'Local' && tableFilter !== 'Todas' && order.tableName !== tableFilter) return false;
@@ -2842,9 +2843,9 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
 
   const counts = {
     Ativos: typeOrders.filter((order) => ['Pendente', 'Em separacao', 'Saiu para entrega'].includes(order.status)).length,
-    Entregues: typeOrders.filter((order) => order.status === 'Entregue').length,
-    Cancelados: typeOrders.filter((order) => order.status === 'Cancelado').length,
-    Todos: typeOrders.length
+    Entregues: datedTypeOrders.filter((order) => order.status === 'Entregue').length,
+    Cancelados: datedTypeOrders.filter((order) => order.status === 'Cancelado').length,
+    Todos: datedTypeOrders.length
   };
 
   return (
@@ -2879,6 +2880,7 @@ function Orders({ orders, updateOrderStatus, deleteOrder, setSelectedOrder, auto
         {filtered.map((order) => (
           <OrderCard key={order.id} order={order} updateOrderStatus={updateOrderStatus} deleteOrder={deleteOrder} onOpen={() => setSelectedOrder(order)} />
         ))}
+        {!filtered.length && <p className="empty">{needsDateFilter ? 'Nenhum pedido encontrado nesta data.' : 'Nenhum pedido ativo agora.'}</p>}
       </section>
     </>
   );
@@ -3250,7 +3252,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
   const [query, setQuery] = React.useState('');
   const [cart, setCart] = React.useState({});
   const [productNotes, setProductNotes] = React.useState({});
-  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
+  const [customer, setCustomer] = React.useState({ name: '', phone: '', address: '', addressNumber: '', reference: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
   const [sentOrder, setSentOrder] = React.useState(null);
   const [orderHistory, setOrderHistory] = React.useState(() => readOrderHistory(historyStorageKey));
   const [checkoutStep, setCheckoutStep] = React.useState('products');
@@ -3397,6 +3399,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
     if (!customer.name.trim()) return setOrderStatus('Informe seu nome.');
     if (!onlyDigits(customer.phone)) return setOrderStatus('Informe seu telefone.');
     if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return setOrderStatus('Informe o endereco para entrega.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryLocation?.mapsUrl && !customer.addressNumber.trim()) return setOrderStatus('Informe o numero do endereco.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryLocation?.mapsUrl && !customer.reference.trim()) return setOrderStatus('Informe um ponto de referencia.');
     if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return setOrderStatus('Selecione o bairro de entrega.');
     setCheckoutStep('payment');
   };
@@ -3442,11 +3446,11 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         }));
         setDeliveryLocation({ latitude, longitude, mapsUrl, address });
         setLocationStatus(address
-          ? 'Confira se o endereco preenchido esta correto antes de enviar o pedido.'
-          : 'Nao consegui identificar a rua automaticamente. Confira o mapa e preencha o endereco.');
+          ? 'Localizacao encontrada. Confira o endereco e informe o numero e um ponto de referencia.'
+          : 'Nao consegui identificar a rua automaticamente. Preencha o endereco, o numero e um ponto de referencia.');
       } catch {
         setDeliveryLocation({ latitude, longitude, mapsUrl, address: '' });
-        setLocationStatus('Peguei sua localizacao, mas nao consegui converter em endereco. Preencha o endereco e confira o mapa.');
+        setLocationStatus('Peguei sua localizacao, mas nao consegui converter em endereco. Preencha o endereco, o numero e um ponto de referencia.');
       } finally {
         setLocationLoading(false);
       }
@@ -3473,13 +3477,20 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
     if (!customer.name.trim()) return setOrderStatus('Informe seu nome.');
     if (!onlyDigits(customer.phone)) return setOrderStatus('Informe seu telefone.');
     if (customer.deliveryMethod === 'Entrega' && !customer.address.trim()) return setOrderStatus('Informe o endereco para entrega.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryLocation?.mapsUrl && !customer.addressNumber.trim()) return setOrderStatus('Informe o numero do endereco.');
+    if (customer.deliveryMethod === 'Entrega' && deliveryLocation?.mapsUrl && !customer.reference.trim()) return setOrderStatus('Informe um ponto de referencia.');
     if (customer.deliveryMethod === 'Entrega' && deliveryZones.length && !customer.deliveryNeighborhood) return setOrderStatus('Selecione o bairro de entrega.');
 
     setSendingOrder(true);
     try {
       const address = customer.deliveryMethod === 'Retirada'
         ? 'Retirada no balcao'
-        : [customer.address, customer.deliveryNeighborhood].filter(Boolean).join(' - ');
+        : [
+            customer.address,
+            customer.addressNumber ? `Numero ${customer.addressNumber}` : '',
+            customer.deliveryNeighborhood,
+            customer.reference ? `Referencia: ${customer.reference}` : ''
+          ].filter(Boolean).join(' - ');
       const formattedPhone = formatBrazilPhone(customer.phone);
       if (demoMode) {
         const savedOrder = {
@@ -3490,6 +3501,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
           payment: customer.payment,
           deliveryMethod: customer.deliveryMethod,
           deliveryNeighborhood: customer.deliveryNeighborhood,
+          addressNumber: customer.addressNumber,
+          reference: customer.reference,
           notes: customer.notes,
           substitution: customer.substitution,
           location: deliveryLocation,
@@ -3503,7 +3516,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         setSentOrder(savedOrder);
         setCart({});
         setProductNotes({});
-        setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
+        setCustomer({ name: '', phone: '', address: '', addressNumber: '', reference: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
         setDeliveryLocation(null);
         setLocationStatus('');
         setCheckoutStep('products');
@@ -3516,6 +3529,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         payment: customer.payment,
         deliveryMethod: customer.deliveryMethod,
         deliveryNeighborhood: customer.deliveryNeighborhood,
+        addressNumber: customer.addressNumber,
+        reference: customer.reference,
         notes: customer.notes,
         substitution: customer.substitution,
         location: deliveryLocation,
@@ -3528,12 +3543,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         createdAt: 'Agora',
         items
       });
-      const savedOrder = { id: orderId, customer: customer.name, phone: formattedPhone, address, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' };
+      const savedOrder = { id: orderId, customer: customer.name, phone: formattedPhone, address, addressNumber: customer.addressNumber, reference: customer.reference, payment: customer.payment, deliveryMethod: customer.deliveryMethod, deliveryNeighborhood: customer.deliveryNeighborhood, notes: customer.notes, substitution: customer.substitution, location: deliveryLocation, total, items, coupon: appliedCoupon ? appliedCoupon.code : '', discount, deliveryFee, paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar' };
       setSentOrder(savedOrder);
       setOrderHistory(saveOrderHistory(historyStorageKey, savedOrder));
       setCart({});
       setProductNotes({});
-      setCustomer({ name: '', phone: '', address: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
+      setCustomer({ name: '', phone: '', address: '', addressNumber: '', reference: '', payment: 'PIX', deliveryMethod: 'Entrega', deliveryNeighborhood: '', substitution: 'Me chamar no WhatsApp', notes: '' });
       setDeliveryLocation(null);
       setLocationStatus('');
       setCheckoutStep('products');
@@ -3758,6 +3773,12 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
                     </button>
                     {locationStatus && <p>{locationStatus}</p>}
                     {deliveryLocation?.mapsUrl && <a href={deliveryLocation.mapsUrl} target="_blank" rel="noreferrer">Abrir localizacao no mapa</a>}
+                    {deliveryLocation?.mapsUrl && (
+                      <div className="location-complement-fields">
+                        <label>Numero do imovel<input value={customer.addressNumber} onChange={(event) => setCustomer({ ...customer, addressNumber: event.target.value })} inputMode="numeric" placeholder="Ex: 125" required /></label>
+                        <label>Ponto de referencia<input value={customer.reference} onChange={(event) => setCustomer({ ...customer, reference: event.target.value })} placeholder="Ex: portao azul, perto da escola" required /></label>
+                      </div>
+                    )}
                   </div>
                 )}
                 <label>Se faltar algum produto<select value={customer.substitution} onChange={(event) => setCustomer({ ...customer, substitution: event.target.value })}>
@@ -5308,10 +5329,14 @@ function orderDateInputValue(order) {
   const text = String(rawDate).trim();
   if (!text) return '';
 
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    const parsedIso = new Date(text);
+    return Number.isNaN(parsedIso.getTime()) ? '' : todayInputValue(parsedIso);
+  }
 
   const normalized = normalizeText(text);
-  if (normalized.startsWith('agora') || normalized.startsWith('hoje')) return todayInputValue();
+  if (normalized.startsWith('agora') || normalized.startsWith('hoje')) return '';
   if (normalized.startsWith('ontem')) {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
