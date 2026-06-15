@@ -4132,6 +4132,7 @@ function Reports({ store, orders, products }) {
   const [startDate, setStartDate] = React.useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`);
   const [endDate, setEndDate] = React.useState(todayInputValue());
   const [statusFilter, setStatusFilter] = React.useState('Validos');
+  const [crmFilter, setCrmFilter] = React.useState('Oportunidades');
   const filtered = orders.filter((order) => {
     const date = orderDateInputValue(order);
     const inPeriod = (!startDate || date >= startDate) && (!endDate || date <= endDate);
@@ -4159,6 +4160,19 @@ function Reports({ store, orders, products }) {
     return summary;
   }, {})).sort((a, b) => b.total - a.total);
   const repeatCustomers = customerSales.filter((customer) => customer.orders > 1).length;
+  const crmCustomers = buildCustomerCrm(orders);
+  const crmCounts = {
+    Oportunidades: crmCustomers.filter((customer) => customer.needsAttention).length,
+    Semana: crmCustomers.filter((customer) => customer.profile === 'Semanal').length,
+    '15 dias': crmCustomers.filter((customer) => customer.profile === 'Quinzenal').length,
+    Mensal: crmCustomers.filter((customer) => customer.profile === 'Mensal').length,
+    Todos: crmCustomers.length
+  };
+  const visibleCrmCustomers = crmCustomers.filter((customer) => {
+    if (crmFilter === 'Todos') return true;
+    if (crmFilter === 'Oportunidades') return customer.needsAttention;
+    return customer.profile === crmFilter || (crmFilter === '15 dias' && customer.profile === 'Quinzenal');
+  });
   const payments = filtered.reduce((summary, order) => {
     const lines = order.settlement?.payments || [{ method: order.payment || 'Nao informado', value: order.settlement?.total ?? orderTotal(order) }];
     lines.forEach((payment) => { summary[payment.method] = Number(summary[payment.method] || 0) + Number(payment.value || 0); });
@@ -4190,7 +4204,8 @@ function Reports({ store, orders, products }) {
     sections: [
       ['Vendas por canal', Object.entries(channels).map(([name, value]) => [name, BRL.format(value)])],
       ['Produtos mais vendidos', productSales.map((item) => [`${item.qty}x ${item.name}`, BRL.format(item.total)])],
-      ['Clientes do periodo', customerSales.slice(0, 12).map((customer) => [`${customer.name} - ${customer.orders} pedido(s)`, BRL.format(customer.total)])]
+      ['Clientes do periodo', customerSales.slice(0, 12).map((customer) => [`${customer.name} - ${customer.orders} pedido(s)`, BRL.format(customer.total)])],
+      ['Relacionamento com clientes', crmCustomers.slice(0, 12).map((customer) => [`${customer.name} - ${customer.profile} - ${customer.daysSinceLast} dia(s) sem pedir`, BRL.format(customer.total)])]
     ]
   });
 
@@ -4227,6 +4242,38 @@ function Reports({ store, orders, products }) {
             </span>
           ))}
           {!customerSales.length && <p className="empty">Nenhum cliente no periodo.</p>}
+        </div>
+      </section>
+      <section className="customer-crm-panel">
+        <div className="customer-crm-head">
+          <div>
+            <small>Relacionamento</small>
+            <strong>Clientes para chamar no WhatsApp</strong>
+          </div>
+          <span>{crmCounts.Oportunidades} oportunidades hoje</span>
+        </div>
+        <div className="customer-crm-tabs">
+          {Object.keys(crmCounts).map((name) => (
+            <button type="button" className={crmFilter === name ? 'active' : ''} onClick={() => setCrmFilter(name)} key={name}>{name} ({crmCounts[name]})</button>
+          ))}
+        </div>
+        <div className="customer-crm-list">
+          {visibleCrmCustomers.slice(0, 20).map((customer) => (
+            <article className={customer.needsAttention ? 'needs-attention' : ''} key={`${customer.phone}-${customer.name}`}>
+              <div>
+                <strong>{customer.name}</strong>
+                <small>{customer.phone ? formatBrazilPhone(customer.phone) : 'Sem telefone'} - {customer.profile} - {customer.orders} pedido(s)</small>
+                <span>{customer.lastDate ? `Ultimo pedido ha ${customer.daysSinceLast} dia(s)` : 'Sem data registrada'}{customer.averageGap ? ` - media ${customer.averageGap} dia(s)` : ''}</span>
+              </div>
+              <b>{BRL.format(customer.total)}</b>
+              {customer.phone ? (
+                <a href={buildCustomerOfferWhatsapp(store, customer)} target="_blank" rel="noreferrer"><MessageCircle size={15} /> Chamar</a>
+              ) : (
+                <em>Sem WhatsApp</em>
+              )}
+            </article>
+          ))}
+          {!visibleCrmCustomers.length && <p className="empty">Nenhum cliente neste perfil agora.</p>}
         </div>
       </section>
       <section className="report-order-table">
@@ -4997,6 +5044,23 @@ function buildPaymentProofWhatsapp(store, order) {
   return `https://wa.me/${whatsappDigits(store.phone)}?text=${encodeURIComponent(message)}`;
 }
 
+function buildCustomerOfferWhatsapp(store, customer) {
+  const message = [
+    `Ola ${customer.name}, tudo bem?`,
+    `Aqui e da ${store.name}. Sentimos sua falta por aqui.`,
+    customer.profile === 'Semanal'
+      ? 'Voce costuma pedir com a gente toda semana, entao separamos uma oferta especial para seu proximo pedido.'
+      : customer.profile === 'Quinzenal'
+        ? 'Ja faz alguns dias desde seu ultimo pedido e preparamos uma condicao especial para voce voltar hoje.'
+        : customer.profile === 'Mensal'
+          ? 'Este mes ainda nao recebemos seu pedido. Temos novidades e ofertas esperando por voce.'
+          : 'Temos uma oferta especial para voce conhecer nosso catalogo novamente.',
+    `Catalogo: ${window.location.origin}/catalogo/${store.catalogSlug || 'catalogo'}`
+  ].join('\n');
+
+  return `https://wa.me/${customer.phone}?text=${encodeURIComponent(message)}`;
+}
+
 function buildCourierLocationWhatsapp(order) {
   const message = [
     `Entrega do pedido #${order.id}`,
@@ -5007,6 +5071,71 @@ function buildCourierLocationWhatsapp(order) {
   ].filter(Boolean).join('\n');
 
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
+function buildCustomerCrm(orders) {
+  const today = todayInputValue();
+  const customers = Object.values(orders.filter((order) => order.status !== 'Cancelado').reduce((summary, order) => {
+    const phone = whatsappDigits(order.phone || '');
+    const key = phone || normalizeText(order.customer || order.tableName || `pedido-${order.id}`);
+    if (!summary[key]) {
+      summary[key] = {
+        name: order.customer || order.tableName || 'Cliente',
+        phone,
+        orders: 0,
+        total: 0,
+        dates: []
+      };
+    }
+    summary[key].orders += 1;
+    summary[key].total += orderTotal(order);
+    const date = orderDateInputValue(order);
+    if (date) summary[key].dates.push(date);
+    return summary;
+  }, {}));
+
+  return customers.map((customer) => {
+    const uniqueDates = [...new Set(customer.dates)].sort();
+    const gaps = uniqueDates.slice(1).map((date, index) => daysBetweenDateInputs(uniqueDates[index], date)).filter((gap) => gap > 0);
+    const averageGap = gaps.length ? Math.round(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length) : 0;
+    const lastDate = uniqueDates[uniqueDates.length - 1] || '';
+    const daysSinceLast = lastDate ? daysBetweenDateInputs(lastDate, today) : 999;
+    const profile = customerRecurrenceProfile(customer.orders, averageGap, daysSinceLast);
+    const expectedGap = profile === 'Semanal' ? 7 : profile === 'Quinzenal' ? 15 : profile === 'Mensal' ? 30 : 21;
+    const needsAttention = customer.orders > 1
+      ? daysSinceLast > expectedGap + 2
+      : daysSinceLast > 20;
+
+    return {
+      ...customer,
+      averageGap,
+      lastDate,
+      daysSinceLast,
+      profile,
+      needsAttention
+    };
+  }).sort((a, b) => Number(b.needsAttention) - Number(a.needsAttention) || b.total - a.total);
+}
+
+function customerRecurrenceProfile(orderCount, averageGap, daysSinceLast) {
+  if (orderCount <= 1) return daysSinceLast <= 30 ? 'Primeira compra' : 'Inativo';
+  if (averageGap && averageGap <= 9) return 'Semanal';
+  if (averageGap && averageGap <= 20) return 'Quinzenal';
+  if (averageGap && averageGap <= 40) return 'Mensal';
+  return 'Eventual';
+}
+
+function daysBetweenDateInputs(start, end) {
+  const startDate = dateInputToLocalDate(start);
+  const endDate = dateInputToLocalDate(end);
+  if (!startDate || !endDate) return 0;
+  return Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
+}
+
+function dateInputToLocalDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
 async function reverseGeocode(latitude, longitude) {
