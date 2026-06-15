@@ -1524,6 +1524,7 @@ function StoreModal({ store, onSave, onClose }) {
         </div>
         <label>Bairros/areas atendidas<textarea value={draft.deliveryAreas || ''} onChange={(event) => setField('deliveryAreas', event.target.value)} placeholder="Ex: Centro, Jardim das Flores, Vila Nova. Deixe em branco para atender todos." /></label>
         <label>Bairros com taxa<textarea value={deliveryZonesToText(draft.deliveryZones)} onChange={(event) => setField('deliveryZones', parseDeliveryZones(event.target.value))} placeholder="Um por linha. Ex: Centro=5, Jardim das Flores=8" /></label>
+        <label className="check-line"><input type="checkbox" checked={Boolean(draft.acceptOrdersWhenClosed)} onChange={(event) => setField('acceptOrdersWhenClosed', event.target.checked)} /> Aceitar pedidos mesmo fora do horario</label>
         <label>Texto do banner<input value={draft.bannerText || ''} onChange={(event) => setField('bannerText', event.target.value)} /></label>
         <label>Banner URL<input value={draft.bannerUrl || ''} onChange={(event) => setField('bannerUrl', event.target.value)} placeholder="Cole o link da imagem do banner" /></label>
         <label>Importar banner do PC<input type="file" accept="image/*" onChange={importBanner} /></label>
@@ -3302,6 +3303,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
   const closedInfo = storeOpenInfo(store);
   const catalogCategories = groupProductsByCategory(activeProducts, store.categoryOrder);
   const featuredProducts = sortProductsForCatalog(activeProducts.filter((product) => product.featured || product.promo)).slice(0, 12);
+  const cartProductIds = new Set(items.map((item) => item.productId));
+  const addOnProducts = sortProductsForCatalog(activeProducts.filter((product) => !cartProductIds.has(product.id) && (product.featured || product.promo))).slice(0, 4);
 
   const addProduct = (product) => {
     if (isConfigurableProduct(product)) {
@@ -3472,7 +3475,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
     }
     setOrderStatus('');
     if (!items.length) return setOrderStatus('Adicione produtos ao pedido.');
-    if (!closedInfo.open) return setOrderStatus(closedInfo.message);
+    if (!closedInfo.open && !closedInfo.accepting) return setOrderStatus(closedInfo.message);
     if (belowMinOrder) return setOrderStatus(`Pedido minimo de ${BRL.format(minOrder)} para este estabelecimento.`);
     if (!customer.name.trim()) return setOrderStatus('Informe seu nome.');
     if (!onlyDigits(customer.phone)) return setOrderStatus('Informe seu telefone.');
@@ -3511,7 +3514,8 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
           coupon: appliedCoupon ? appliedCoupon.code : '',
           discount,
           deliveryFee,
-          paymentStatus: 'Demonstracao'
+          paymentStatus: 'Demonstracao',
+          afterHoursOrder: !closedInfo.open && closedInfo.accepting
         };
         setSentOrder(savedOrder);
         setCart({});
@@ -3539,6 +3543,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
         discount,
         deliveryFee,
         paymentStatus: customer.payment === 'PIX' ? 'Aguardando comprovante' : 'A combinar',
+        afterHoursOrder: !closedInfo.open && closedInfo.accepting,
         status: 'Pendente',
         createdAt: 'Agora',
         items
@@ -3600,7 +3605,7 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
           </div>
         )}
         {!closedInfo.open && (
-          <div className="closed-message">
+          <div className={`closed-message ${closedInfo.accepting ? 'accepting' : ''}`}>
             <Clock size={20} />
             <strong>{closedInfo.message}</strong>
           </div>
@@ -3745,6 +3750,22 @@ function Catalog({ store, products, coupons, onOrder, storeSlug, demoMode = fals
               {customer.deliveryMethod === 'Entrega' && <div><span>Entrega</span><strong>{deliveryFee > 0 ? BRL.format(deliveryFee) : 'Gratis'}</strong></div>}
               <div className="cart-total"><span>Total</span><strong>{BRL.format(total)}</strong></div>
             </div>
+            {checkoutStep === 'address' && addOnProducts.length > 0 && (
+              <section className="cart-suggestion-box">
+                <div>
+                  <strong>Complemente seu pedido</strong>
+                  <small>Produtos em destaque que combinam com seu carrinho.</small>
+                </div>
+                <div>
+                  {addOnProducts.map((product) => (
+                    <button type="button" key={product.id} onClick={() => addProduct(product)}>
+                      <span>{product.name}</span>
+                      <b>{BRL.format(product.price)}</b>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             {belowMinOrder && <p className="checkout-warning">Pedido minimo de {BRL.format(minOrder)}. Faltam {BRL.format(Math.max(0, minOrder - subtotal))} para finalizar.</p>}
             {checkoutStep === 'address' ? (
               <>
@@ -4001,16 +4022,56 @@ function ProductCustomizeModal({ store, product, onAdd, onClose }) {
   );
 }
 
+function trackingStepInfo(status) {
+  const info = {
+    Pendente: {
+      title: 'Pedido recebido',
+      short: 'Recebido',
+      hint: 'A loja recebeu seu pedido.',
+      message: 'Seu pedido chegou para a loja e em breve sera confirmado pela equipe.'
+    },
+    'Em separacao': {
+      title: 'Pedido em preparo',
+      short: 'Preparo',
+      hint: 'Equipe separando ou preparando.',
+      message: 'A equipe ja esta separando ou preparando os itens do seu pedido.'
+    },
+    'Saiu para entrega': {
+      title: 'Saiu para entrega',
+      short: 'Entrega',
+      hint: 'Entregador a caminho.',
+      message: 'Seu pedido saiu para entrega. Fique atento ao telefone e ao endereco informado.'
+    },
+    Entregue: {
+      title: 'Pedido entregue',
+      short: 'Entregue',
+      hint: 'Compra finalizada.',
+      message: 'Pedido finalizado. Obrigado por comprar pelo PediJah.'
+    },
+    Cancelado: {
+      title: 'Pedido cancelado',
+      short: 'Cancelado',
+      hint: 'Fale com a loja.',
+      message: 'Este pedido foi cancelado. Se tiver duvida, fale com a loja pelo WhatsApp.'
+    }
+  };
+  return info[status] || { title: status || 'Pedido', short: status || 'Pedido', hint: 'Acompanhe a atualizacao.', message: 'Acompanhe as atualizacoes deste pedido.' };
+}
+
 function OrderTracking({ store, order, loading }) {
   const steps = ['Pendente', 'Em separacao', 'Saiu para entrega', 'Entregue'];
   const currentIndex = order ? steps.indexOf(order.status) : -1;
   const isCanceled = order?.status === 'Cancelado';
+  const currentStep = order ? trackingStepInfo(order.status) : null;
+  const trackingItems = order?.items || [];
 
   return (
     <main className="tracking-page">
       <section className="tracking-card">
-        <LogoMark store={store} />
-        <span>{store.name}</span>
+        <div className="tracking-store-head">
+          <LogoMark store={store} />
+          <span><small>Status do pedido</small><strong>{store.name}</strong></span>
+        </div>
         {loading ? (
           <>
             <h1>Carregando pedido...</h1>
@@ -4019,16 +4080,18 @@ function OrderTracking({ store, order, loading }) {
         ) : order ? (
           <>
             <h1>Pedido #{order.id}</h1>
-            <p>{order.customer}, acompanhe o andamento do seu pedido.</p>
+            <p>{order.customer}, acompanhe o andamento do seu pedido em tempo real.</p>
             <div className={`tracking-status ${isCanceled ? 'canceled' : ''}`}>
-              {isCanceled ? 'Pedido cancelado' : order.status}
+              {isCanceled ? 'Pedido cancelado' : currentStep?.title || order.status}
             </div>
+            {currentStep && <p className="tracking-status-copy">{currentStep.message}</p>}
             {!isCanceled && (
               <div className="status-steps">
                 {steps.map((step, index) => (
                   <div className={index <= currentIndex ? 'done' : ''} key={step}>
                     <span>{index + 1}</span>
-                    <strong>{step}</strong>
+                    <strong>{trackingStepInfo(step).short}</strong>
+                    <small>{trackingStepInfo(step).hint}</small>
                   </div>
                 ))}
               </div>
@@ -4038,7 +4101,20 @@ function OrderTracking({ store, order, loading }) {
               <div><span>Entrega</span><strong>{order.deliveryMethod || 'Entrega'}</strong></div>
               <div><span>Pagamento</span><strong>{order.payment}</strong></div>
             </div>
-            <a className="orange-button" href={`/catalogo/${store.catalogSlug || 'mercado'}`}>Voltar ao catalogo</a>
+            <section className="tracking-items">
+              <strong>Resumo do pedido</strong>
+              {trackingItems.slice(0, 6).map((item, index) => (
+                <span key={`${item.productId || item.name}-${index}`}>
+                  <small>{item.qty}x {item.name}</small>
+                  <b>{BRL.format(Number(item.qty || 0) * itemUnitPrice(item))}</b>
+                </span>
+              ))}
+              {trackingItems.length > 6 && <em>+{trackingItems.length - 6} itens no pedido</em>}
+            </section>
+            <div className="tracking-actions">
+              <a className="orange-button" href={`/catalogo/${store.catalogSlug || 'mercado'}`}>Voltar ao catalogo</a>
+              {store.phone && <a className="ghost-button" href={`https://wa.me/${whatsappDigits(store.phone)}?text=${encodeURIComponent(`Ola, quero falar sobre o pedido #${order.id}.`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Falar com a loja</a>}
+            </div>
           </>
         ) : (
           <>
@@ -4069,6 +4145,20 @@ function Reports({ store, orders, products }) {
   const canceled = filtered.filter((order) => order.status === 'Cancelado').length;
   const averageTicket = filtered.length ? revenue / filtered.length : 0;
   const itemCount = filtered.reduce((sum, order) => sum + order.items.reduce((total, item) => total + Number(item.qty || 0), 0), 0);
+  const customerSales = Object.values(filtered.reduce((summary, order) => {
+    const phone = whatsappDigits(order.phone || '');
+    const key = phone || normalizeText(order.customer || order.tableName || `pedido-${order.id}`);
+    if (!summary[key]) summary[key] = { name: order.customer || order.tableName || 'Cliente', phone, orders: 0, total: 0, lastDate: '', lastOrder: 0 };
+    summary[key].orders += 1;
+    summary[key].total += orderTotal(order);
+    const date = orderDateInputValue(order) || order.createdAtIso || order.createdAt || '';
+    if (!summary[key].lastDate || String(date) > String(summary[key].lastDate)) {
+      summary[key].lastDate = date;
+      summary[key].lastOrder = order.id;
+    }
+    return summary;
+  }, {})).sort((a, b) => b.total - a.total);
+  const repeatCustomers = customerSales.filter((customer) => customer.orders > 1).length;
   const payments = filtered.reduce((summary, order) => {
     const lines = order.settlement?.payments || [{ method: order.payment || 'Nao informado', value: order.settlement?.total ?? orderTotal(order) }];
     lines.forEach((payment) => { summary[payment.method] = Number(summary[payment.method] || 0) + Number(payment.value || 0); });
@@ -4099,7 +4189,8 @@ function Reports({ store, orders, products }) {
     headers: ['Data', 'Pedido', 'Cliente/mesa', 'Status', 'Pagamento', 'Total'],
     sections: [
       ['Vendas por canal', Object.entries(channels).map(([name, value]) => [name, BRL.format(value)])],
-      ['Produtos mais vendidos', productSales.map((item) => [`${item.qty}x ${item.name}`, BRL.format(item.total)])]
+      ['Produtos mais vendidos', productSales.map((item) => [`${item.qty}x ${item.name}`, BRL.format(item.total)])],
+      ['Clientes do periodo', customerSales.slice(0, 12).map((customer) => [`${customer.name} - ${customer.orders} pedido(s)`, BRL.format(customer.total)])]
     ]
   });
 
@@ -4118,11 +4209,25 @@ function Reports({ store, orders, products }) {
         <Metric label="Pedidos" value={filtered.length} icon={ShoppingBag} />
         <Metric label="Ticket medio" value={BRL.format(averageTicket)} icon={CreditCard} />
         <Metric label="Itens vendidos" value={itemCount} icon={Box} />
+        <Metric label="Clientes atendidos" value={customerSales.length} icon={Users} />
+        <Metric label="Clientes recorrentes" value={repeatCustomers} icon={MessageCircle} />
       </section>
       <section className="report-dashboard-grid">
         <article className="report-panel"><strong>Formas de pagamento</strong><div className="report-ranking">{Object.entries(payments).sort((a, b) => b[1] - a[1]).map(([name, value]) => <span key={name}><small>{name}</small><b>{BRL.format(value)}</b></span>)}{!Object.keys(payments).length && <p className="empty">Nenhum pagamento no periodo.</p>}</div></article>
         <article className="report-panel"><strong>Vendas por canal</strong><div className="report-ranking">{Object.entries(channels).sort((a, b) => b[1] - a[1]).map(([name, value]) => <span key={name}><small>{name}</small><b>{BRL.format(value)}</b></span>)}</div></article>
         <article className="report-panel report-products"><strong>Produtos mais vendidos</strong><div className="report-ranking">{productSales.map((item, index) => <span key={item.name}><small>{index + 1}. {item.name} · {item.qty} un.</small><b>{BRL.format(item.total)}</b></span>)}{!productSales.length && <p className="empty">Nenhuma venda no periodo.</p>}</div></article>
+      </section>
+      <section className="report-customers-panel">
+        <div><strong>Clientes do periodo</strong><small>{customerSales.length} clientes atendidos - {repeatCustomers} recorrentes</small></div>
+        <div className="report-ranking">
+          {customerSales.slice(0, 12).map((customer, index) => (
+            <span key={`${customer.phone}-${customer.name}`}>
+              <small>{index + 1}. {customer.name} - {customer.orders} pedido(s){customer.phone ? ` - ${formatBrazilPhone(customer.phone)}` : ''}</small>
+              <b>{BRL.format(customer.total)}</b>
+            </span>
+          ))}
+          {!customerSales.length && <p className="empty">Nenhum cliente no periodo.</p>}
+        </div>
       </section>
       <section className="report-order-table">
         <div><strong>Pedidos do periodo</strong><small>{delivered} entregues · {canceled} cancelados · {products.length} produtos cadastrados</small></div>
@@ -4867,6 +4972,7 @@ function buildStoreOrderWhatsapp(store, order) {
     order.deliveryNeighborhood ? `Bairro: ${order.deliveryNeighborhood}` : '',
     `Endereco: ${order.address}`,
     order.location?.mapsUrl ? `Mapa: ${order.location.mapsUrl}` : '',
+    order.afterHoursOrder ? 'Atencao: pedido enviado fora do horario para o proximo atendimento.' : '',
     Number(order.deliveryFee || 0) > 0 ? `Taxa de entrega: ${BRL.format(order.deliveryFee)}` : '',
     `Pagamento: ${order.payment}`,
     order.substitution ? `Se faltar produto: ${order.substitution}` : '',
@@ -5384,8 +5490,11 @@ function formatItemOptions(item) {
 }
 
 function storeOpenInfo(store) {
+  const accepting = Boolean(store.acceptOrdersWhenClosed);
   if (store.status === 'Fechado') {
-    return { open: false, message: 'Este estabelecimento esta fechado agora.' };
+    return accepting
+      ? { open: false, accepting: true, message: 'Estamos fechados agora, mas voce pode enviar o pedido para prepararmos no proximo atendimento.' }
+      : { open: false, accepting: false, message: 'Este estabelecimento esta fechado agora.' };
   }
 
   const match = String(store.hours || '').match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
@@ -5399,8 +5508,10 @@ function storeOpenInfo(store) {
   const open = end >= start ? current >= start && current <= end : current >= start || current <= end;
 
   return open
-    ? { open: true, message: '' }
-    : { open: false, message: `Fora do horario de atendimento (${store.hours}).` };
+    ? { open: true, accepting: false, message: '' }
+    : accepting
+      ? { open: false, accepting: true, message: `Fora do horario (${store.hours}), mas o pedido pode ser enviado para o proximo atendimento.` }
+      : { open: false, accepting: false, message: `Fora do horario de atendimento (${store.hours}).` };
 }
 
 createRoot(document.getElementById('root')).render(<App />);

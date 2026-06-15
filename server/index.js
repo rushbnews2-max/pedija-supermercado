@@ -1037,6 +1037,7 @@ function establishmentToStore(establishment) {
     pixName: establishment?.name || '',
     deliveryFee: 0,
     minOrder: 0,
+    acceptOrdersWhenClosed: false,
     deliveryAreas: '',
     deliveryZones: [],
     categoryOrder: [],
