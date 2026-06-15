@@ -3053,15 +3053,78 @@ input[type="file"] {
   max-width: 520px;
 }
 
+.report-filter-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
+}
+
+.report-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.report-filter-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.report-filter-head small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.report-filter-head strong {
+  font-size: 18px;
+}
+
+.report-filter-head > span {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.report-period-shortcuts {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.report-period-shortcuts button {
+  min-height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #1e3a8a;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .report-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid #dbe4ef;
-  border-radius: 8px;
-  background: #fff;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
 }
 
 .report-dashboard-grid {
@@ -3110,6 +3173,43 @@ input[type="file"] {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+}
+
+.report-day-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.report-day-group header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.report-day-group header span {
+  display: grid;
+  gap: 2px;
+}
+
+.report-day-group header small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.report-day-group header b {
+  color: var(--orange);
+  white-space: nowrap;
+}
+
+.report-day-group article {
+  background: #fff;
 }
 
 .report-order-table > div,
@@ -5501,6 +5601,12 @@ input[type="file"] {
   .report-filters,
   .report-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .report-filter-head,
+  .report-day-group header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .customer-crm-head {

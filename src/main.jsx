@@ -4133,6 +4133,11 @@ function Reports({ store, orders, products }) {
   const [endDate, setEndDate] = React.useState(todayInputValue());
   const [statusFilter, setStatusFilter] = React.useState('Validos');
   const [crmFilter, setCrmFilter] = React.useState('Oportunidades');
+  const applyPeriodPreset = (preset) => {
+    const range = reportDateRangePreset(preset);
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+  };
   const filtered = orders.filter((order) => {
     const date = orderDateInputValue(order);
     const inPeriod = (!startDate || date >= startDate) && (!endDate || date <= endDate);
@@ -4192,6 +4197,12 @@ function Reports({ store, orders, products }) {
     });
     return summary;
   }, {})).sort((a, b) => b.total - a.total).slice(0, 10);
+  const ordersByDate = Object.entries(filtered.reduce((summary, order) => {
+    const date = orderDateInputValue(order) || 'sem-data';
+    if (!summary[date]) summary[date] = [];
+    summary[date].push(order);
+    return summary;
+  }, {})).sort((a, b) => b[0].localeCompare(a[0]));
   const period = `${formatReportDate(startDate)} ate ${formatReportDate(endDate)}`;
   const exportPdf = () => printFinancialReport({
     store,
@@ -4214,10 +4225,26 @@ function Reports({ store, orders, products }) {
       <PageHeader title="Relatorio financeiro" subtitle="Analise vendas, recebimentos e desempenho por periodo">
         <button className="orange-button" type="button" onClick={exportPdf}><Download size={17} /> Gerar PDF</button>
       </PageHeader>
-      <section className="report-filters">
-        <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-        <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-        <label>Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Validos</option><option>Todos</option><option>Entregue</option><option>Cancelado</option><option>Pendente</option></select></label>
+      <section className="report-filter-panel">
+        <div className="report-filter-head">
+          <div>
+            <small>Periodo do relatorio</small>
+            <strong>{period}</strong>
+          </div>
+          <span>{filtered.length} pedido(s) encontrados</span>
+        </div>
+        <div className="report-period-shortcuts">
+          <button type="button" onClick={() => applyPeriodPreset('today')}>Hoje</button>
+          <button type="button" onClick={() => applyPeriodPreset('7days')}>7 dias</button>
+          <button type="button" onClick={() => applyPeriodPreset('15days')}>15 dias</button>
+          <button type="button" onClick={() => applyPeriodPreset('month')}>Este mes</button>
+          <button type="button" onClick={() => applyPeriodPreset('lastMonth')}>Mes passado</button>
+        </div>
+        <div className="report-filters">
+          <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+          <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+          <label>Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Validos</option><option>Todos</option><option>Entregue</option><option>Cancelado</option><option>Pendente</option></select></label>
+        </div>
       </section>
       <section className="metric-grid report-metrics">
         <Metric label="Faturamento" value={BRL.format(revenue)} icon={ReceiptText} />
@@ -4277,8 +4304,19 @@ function Reports({ store, orders, products }) {
         </div>
       </section>
       <section className="report-order-table">
-        <div><strong>Pedidos do periodo</strong><small>{delivered} entregues · {canceled} cancelados · {products.length} produtos cadastrados</small></div>
-        {filtered.slice(0, 100).map((order) => <article key={order.id}><span><strong>#{order.id} · {order.customer || order.tableName || 'Cliente'}</strong><small>{order.createdAt} · {order.status}</small></span><b>{BRL.format(orderTotal(order))}</b></article>)}
+        <div><strong>Pedidos do periodo</strong><small>{delivered} entregues - {canceled} cancelados - {products.length} produtos cadastrados</small></div>
+        {ordersByDate.map(([date, dayOrders]) => (
+          <section className="report-day-group" key={date}>
+            <header>
+              <span>
+                <strong>{date === 'sem-data' ? 'Sem data registrada' : formatReportDate(date)}</strong>
+                <small>{dayOrders.length} pedido(s)</small>
+              </span>
+              <b>{BRL.format(dayOrders.reduce((sum, order) => sum + orderTotal(order), 0))}</b>
+            </header>
+            {dayOrders.slice(0, 100).map((order) => <article key={order.id}><span><strong>#{order.id} - {order.customer || order.tableName || 'Cliente'}</strong><small>{order.createdAt} - {order.status}</small></span><b>{BRL.format(orderTotal(order))}</b></article>)}
+          </section>
+        ))}
         {!filtered.length && <p className="empty">Nenhum pedido encontrado neste periodo.</p>}
       </section>
     </>
@@ -5548,6 +5586,25 @@ function todayInputValue(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function reportDateRangePreset(preset) {
+  const now = new Date();
+  const today = todayInputValue(now);
+  if (preset === 'today') return { startDate: today, endDate: today };
+  if (preset === '7days' || preset === '15days') {
+    const days = preset === '7days' ? 6 : 14;
+    const start = new Date(now);
+    start.setDate(start.getDate() - days);
+    return { startDate: todayInputValue(start), endDate: today };
+  }
+  if (preset === 'lastMonth') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { startDate: todayInputValue(start), endDate: todayInputValue(end) };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { startDate: todayInputValue(start), endDate: today };
+}
+
 function formatReportDate(value) {
   if (!value) return 'Sem limite';
   const [year, month, day] = String(value).slice(0, 10).split('-');
@@ -5642,5 +5699,4 @@ function storeOpenInfo(store) {
       ? { open: false, accepting: true, message: `Fora do horario (${store.hours}), mas o pedido pode ser enviado para o proximo atendimento.` }
       : { open: false, accepting: false, message: `Fora do horario de atendimento (${store.hours}).` };
 }
-
 createRoot(document.getElementById('root')).render(<App />);
