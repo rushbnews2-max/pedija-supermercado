@@ -2091,6 +2091,11 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
   const withdrawals = (openCash?.movements || []).filter((item) => item.type === 'withdrawal').reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const cashSales = Object.entries(openPayments).filter(([method]) => normalizeText(method).includes('dinheiro')).reduce((sum, [, value]) => sum + value, 0);
   const expectedCash = Number(openCash?.openingAmount || 0) + cashSales + supplies - withdrawals;
+  const openSalesTotal = Object.values(openPayments).reduce((sum, value) => sum + value, 0);
+  const paymentEntries = Object.entries(payments);
+  const recentClosings = filtered.slice(0, 8);
+  const closedCashSessions = cashSessions.filter((cash) => cash.status === 'closed').slice(0, 20);
+  const canViewCashAudit = currentUser?.profile === 'admin';
   const submitCashAction = async (event) => {
     event.preventDefault();
     if (cashAction === 'open') await openCashRegister({ openingAmount: Number(cashForm.amount || 0), notes: cashForm.notes });
@@ -2104,7 +2109,8 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
     <section className="professional-cash">
       <header className="pos-command-header professional">
         <div className="pos-command-title"><span><CreditCard size={24} /></span><div><small>Controle financeiro do turno</small><h1>Caixa profissional</h1><p>Abertura, movimentacoes, conferencia e fechamento em um so lugar</p></div></div>
-        <button className="ghost-button" type="button" onClick={() => printFinancialReport({
+        <span className={`cash-access-badge ${canViewCashAudit ? 'admin' : 'blind'}`}>{canViewCashAudit ? 'Visao administrativa' : 'Fechamento cego'}</span>
+        {canViewCashAudit && <button className="ghost-button" type="button" onClick={() => printFinancialReport({
           store,
           title: 'Historico do caixa local',
           period: `${formatReportDate(startDate)} ate ${formatReportDate(endDate)}`,
@@ -2123,8 +2129,94 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
             BRL.format(Number(closing.settlement.total || 0))
           ]),
           headers: ['Data', 'Mesa', 'Garcom', 'Pagamento', 'Total']
-        })}><Download size={17} /> Gerar PDF</button>
+        })}><Download size={17} /> Gerar PDF</button>}
       </header>
+      <section className={`cash-register-strip ${openCash ? 'open' : 'closed'}`}>
+        <div className="cash-register-status">
+          <span><Banknote size={22} /></span>
+          <div>
+            <small>{openCash ? 'Caixa aberto' : 'Caixa fechado'}</small>
+            <strong>{openCash ? `Turno de ${openCash.openedBy}` : 'Nenhum turno em andamento'}</strong>
+            <em>{openCash ? `Aberto em ${new Date(openCash.openedAt).toLocaleString('pt-BR')}` : 'Abra o caixa para registrar vendas, sangrias e suprimentos.'}</em>
+          </div>
+        </div>
+        {openCash ? (
+          <div className="cash-register-quick-actions">
+            <button className="ghost-button" type="button" onClick={() => setCashAction('supply')}><Plus size={17} /> Suprimento</button>
+            <button className="ghost-button danger-text" type="button" onClick={() => setCashAction('withdrawal')}><Banknote size={17} /> Sangria</button>
+            <button className="orange-button" type="button" onClick={() => setCashAction('close')}><Check size={17} /> Fechar caixa</button>
+          </div>
+        ) : (
+          <button className="orange-button" type="button" onClick={() => setCashAction('open')}><Plus size={17} /> Abrir caixa</button>
+        )}
+      </section>
+      {canViewCashAudit ? <section className="cashier-workbench">
+        <main className="cashier-main-panel">
+          <section className="cashier-filter-card">
+            <div className="cash-section-heading"><span><small>Movimento financeiro</small><strong>Filtro do periodo</strong></span></div>
+            <div className="local-cash-filters">
+              <label>Data inicial<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+              <label>Data final<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+              <label>Mesa<select value={tableFilter} onChange={(event) => setTableFilter(event.target.value)}><option>Todas</option>{tables.map((table) => <option key={table}>{table}</option>)}</select></label>
+              <label>Garcom<select value={waiterFilter} onChange={(event) => setWaiterFilter(event.target.value)}><option>Todos</option>{waiters.map((waiter) => <option key={waiter}>{waiter}</option>)}</select></label>
+            </div>
+          </section>
+          <section className="cashier-ledger-card">
+            <div className="cash-section-heading"><span><small>Recebimentos</small><strong>Mesas fechadas no periodo</strong></span><b>{filtered.length} registros</b></div>
+            <div className="local-closing-list">
+              {recentClosings.map((closing) => (
+                <article key={closing.id}>
+                  <button type="button" onClick={() => setSelectedClosing(closing)}>
+                    <span><strong>{closing.tableName}</strong><small>{new Date(closing.settledAt).toLocaleString('pt-BR')} - {closing.waiters.join(', ') || 'Sem garcom'}</small></span>
+                    <span><small>{closing.settlement.payment || 'Pagamento dividido'}</small><strong>{BRL.format(Number(closing.settlement.total || 0))}</strong></span>
+                    <ChevronRight size={18} />
+                  </button>
+                  <button className="ghost-button" type="button" onClick={() => printTableAccount({ name: closing.tableName }, closing.orders, closing.settlement, 'receipt')}><Printer size={16} /> Reimprimir</button>
+                </article>
+              ))}
+              {!filtered.length && <article className="placeholder-panel"><strong>Nenhuma mesa fechada</strong><p>Ajuste os filtros ou aguarde novos recebimentos.</p></article>}
+              {filtered.length > recentClosings.length && <p className="cash-list-note">Mostrando os 8 recebimentos mais recentes. Use o PDF para conferir o periodo completo.</p>}
+            </div>
+          </section>
+          <section className="cash-session-history">
+            <div className="cash-section-heading"><span><small>Arquivo</small><strong>Fechamentos de caixa</strong></span></div>
+            {closedCashSessions.map((cash) => <article key={cash.id}><span><strong>{new Date(cash.openedAt).toLocaleDateString('pt-BR')} - {cash.openedBy}</strong><small>{new Date(cash.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} ate {new Date(cash.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small></span><span><small>Esperado</small><b>{BRL.format(cash.summary?.expectedCash || 0)}</b></span><span><small>Informado</small><b>{BRL.format(cash.countedAmount)}</b></span><span><small>Diferenca</small><b className={Number(cash.difference) < 0 ? 'negative' : ''}>{BRL.format(cash.difference)}</b></span><button type="button" aria-label="Gerar PDF do fechamento" onClick={() => printFinancialReport({ store, title: 'Fechamento de caixa', period: `${new Date(cash.openedAt).toLocaleString('pt-BR')} ate ${new Date(cash.closedAt).toLocaleString('pt-BR')}`, metrics: [['Operador', cash.openedBy], ['Vendas', BRL.format(cash.summary?.totalSales || 0)], ['Dinheiro esperado', BRL.format(cash.summary?.expectedCash || 0)], ['Valor contado', BRL.format(cash.countedAmount)], ['Diferenca', BRL.format(cash.difference)]], payments: cash.summary?.payments || {}, headers: ['Data', 'Movimento', 'Responsavel', 'Motivo', 'Valor'], rows: (cash.movements || []).map((movement) => [new Date(movement.createdAt).toLocaleString('pt-BR'), movement.type === 'supply' ? 'Suprimento' : 'Sangria', movement.createdBy, movement.reason || '-', BRL.format(movement.amount)]) })}><Download size={16} /></button></article>)}
+            {!closedCashSessions.length && <p className="empty">Nenhum fechamento de caixa registrado.</p>}
+          </section>
+        </main>
+        <aside className="cashier-side-panel">
+          <section className="cashier-totals-card">
+            <small>Total recebido no periodo</small>
+            <strong>{BRL.format(totalReceived)}</strong>
+            <span><ReceiptText size={16} /> {filtered.length} mesas fechadas</span>
+          </section>
+          <section className="cashier-kpi-grid">
+            <span><small>Vendas do turno</small><strong>{BRL.format(openSalesTotal)}</strong></span>
+            <span><small>Dinheiro esperado</small><strong>{BRL.format(expectedCash)}</strong></span>
+            <span><small>Taxa de servico</small><strong>{BRL.format(serviceTotal)}</strong></span>
+            <span><small>Descontos</small><strong>{BRL.format(discountTotal)}</strong></span>
+          </section>
+          <section className="local-payment-summary">
+            <div className="cash-section-heading"><span><small>Conferencia</small><strong>Formas de pagamento</strong></span></div>
+            <div>{paymentEntries.map(([method, value]) => <span key={method}><small>{method}</small><b>{BRL.format(value)}</b></span>)}{!paymentEntries.length && <p className="empty">Nenhum recebimento encontrado.</p>}</div>
+          </section>
+          {openCash && (openCash.movements || []).length > 0 && (
+            <section className="cash-movement-preview">
+              <div className="cash-section-heading"><span><small>Gaveta</small><strong>Ultimos movimentos</strong></span></div>
+              {openCash.movements.slice(0, 5).map((movement) => <span key={movement.id}><small>{movement.type === 'supply' ? 'Suprimento' : 'Sangria'} - {movement.reason || 'Sem observacao'}</small><b className={movement.type === 'withdrawal' ? 'negative' : ''}>{movement.type === 'withdrawal' ? '-' : '+'} {BRL.format(movement.amount)}</b></span>)}
+            </section>
+          )}
+        </aside>
+      </section> : (
+        <section className="blind-cash-panel">
+          <span><Shield size={24} /></span>
+          <div>
+            <small>Fechamento cego ativado</small>
+            <strong>O operador nao visualiza totais, historico nem conferencias.</strong>
+            <p>Ao fechar o caixa, informe apenas o valor contado na gaveta. A diferenca e os relatorios ficam disponiveis somente para o administrador.</p>
+          </div>
+        </section>
+      )}
       {openCash ? (
         <section className="cash-register-open">
           <div className="cash-register-head"><span><small>Turno atual</small><strong>{openCash.openedBy}</strong><em>Aberto em {new Date(openCash.openedAt).toLocaleString('pt-BR')}</em></span><b><span></span> Em operacao</b></div>
@@ -2177,15 +2269,16 @@ function LocalCash({ store, orders, cashSessions, openCashRegister, addCashMovem
         {!cashSessions.some((cash) => cash.status === 'closed') && <p className="empty">Nenhum fechamento de caixa registrado.</p>}
       </section>
       {selectedClosing && <LocalClosingModal closing={selectedClosing} onClose={() => setSelectedClosing(null)} />}
-      {cashAction && <CashActionModal action={cashAction} form={cashForm} setForm={setCashForm} expectedCash={expectedCash} currentUser={currentUser} onClose={() => setCashAction(null)} onSubmit={submitCashAction} />}
+      {cashAction && <CashActionModal action={cashAction} form={cashForm} setForm={setCashForm} expectedCash={expectedCash} canViewExpected={canViewCashAudit} currentUser={currentUser} onClose={() => setCashAction(null)} onSubmit={submitCashAction} />}
     </section>
   );
 }
 
-function CashActionModal({ action, form, setForm, expectedCash, currentUser, onClose, onSubmit }) {
+function CashActionModal({ action, form, setForm, expectedCash, canViewExpected = true, currentUser, onClose, onSubmit }) {
   const titles = { open: 'Abrir caixa', supply: 'Registrar suprimento', withdrawal: 'Registrar sangria', close: 'Fechar caixa' };
   return <div className="overlay"><form className="modal cash-action-modal" onSubmit={onSubmit}><div className="modal-head"><div><h2>{titles[action]}</h2><small>Operador: {currentUser?.name || 'Administrador'}</small></div><button type="button" onClick={onClose}><X size={20} /></button></div>
-    {action === 'close' && <div className="cash-expected-box"><small>Dinheiro esperado na gaveta</small><strong>{BRL.format(expectedCash)}</strong></div>}
+    {action === 'close' && canViewExpected && <div className="cash-expected-box"><small>Dinheiro esperado na gaveta</small><strong>{BRL.format(expectedCash)}</strong></div>}
+    {action === 'close' && !canViewExpected && <div className="cash-expected-box blind"><small>Fechamento cego</small><strong>Informe apenas o valor contado</strong></div>}
     <label>{action === 'open' ? 'Valor inicial em dinheiro' : action === 'close' ? 'Valor contado na gaveta' : 'Valor'}<input type="number" min="0" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required autoFocus /></label>
     {(action === 'supply' || action === 'withdrawal') && <label>Motivo<input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder={action === 'supply' ? 'Ex: Troco adicional' : 'Ex: Deposito bancario'} required /></label>}
     {(action === 'open' || action === 'close') && <label>Observacao<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Opcional" /></label>}
