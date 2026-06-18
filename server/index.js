@@ -172,7 +172,7 @@ app.get('/api/bootstrap', async (req, res) => {
       coupons: permissions.includes('coupons') ? scoped.coupons : [],
       teamUsers: permissions.includes('team') ? scoped.teamUsers.map(({ password, ...user }) => user) : [],
       auditLogs: permissions.includes('audit') ? scoped.auditLogs : [],
-      cashSessions: permissions.includes('local_cash') ? scoped.cashSessions : [],
+      cashSessions: permissions.includes('local_cash') ? cashSessionsForSession(scoped.cashSessions, session) : [],
       currentUser: session.currentUser || null
     });
     return;
@@ -233,8 +233,9 @@ app.get('/api/audit-logs', requirePermission('audit'), async (req, res) => {
 });
 
 app.get('/api/cash-register', async (req, res) => {
-  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), getSession(req));
-  res.json(scoped.cashSessions);
+  const session = getSession(req);
+  const scoped = getStoreBySession(withPlatformDefaults(await readDb()), session);
+  res.json(cashSessionsForSession(scoped.cashSessions, session));
 });
 
 app.post('/api/cash-register/open', async (req, res) => {
@@ -257,7 +258,7 @@ app.post('/api/cash-register/open', async (req, res) => {
     });
     return { ...establishment, cashSessions: [saved, ...safeArray(establishment.cashSessions)] };
   }));
-  res.status(201).json(saved);
+  res.status(201).json(cashSessionForSession(saved, session));
 });
 
 app.post('/api/cash-register/:id/movements', async (req, res) => {
@@ -305,7 +306,7 @@ app.post('/api/cash-register/:id/close', async (req, res) => {
     })
   })));
   if (!saved) return res.status(404).json({ message: 'Caixa aberto nao encontrado.' });
-  res.json(saved);
+  res.json(cashSessionForSession(saved, session));
 });
 
 app.get('/api/waiter/bootstrap', async (req, res) => {
@@ -948,6 +949,29 @@ function permissionsForProfile(profile, customPermissions) {
   return Array.isArray(customPermissions) && customPermissions.length
     ? customPermissions.filter((permission) => ALL_STORE_PERMISSIONS.includes(permission))
     : defaults;
+}
+
+function canViewCashAudit(session) {
+  return session?.currentUser?.profile === 'admin';
+}
+
+function cashSessionForSession(cash, session) {
+  if (canViewCashAudit(session)) return cash;
+  if (!cash || cash.status !== 'open') return null;
+  return {
+    id: cash.id,
+    status: cash.status,
+    openedAt: cash.openedAt,
+    openedBy: cash.openedBy
+  };
+}
+
+function cashSessionsForSession(cashSessions, session) {
+  if (canViewCashAudit(session)) return safeArray(cashSessions);
+  return safeArray(cashSessions)
+    .filter((cash) => cash.status === 'open')
+    .map((cash) => cashSessionForSession(cash, session))
+    .filter(Boolean);
 }
 
 function normalizeTeamUser(value) {
